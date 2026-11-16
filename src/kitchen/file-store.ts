@@ -30,6 +30,7 @@ export class FileStore implements KitchenStore {
   private torn = false;
 
   constructor(dir: string, kitchen: string, seed: Catalog) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(kitchen)) throw new Error(`Invalid kitchen name "${kitchen}": use lowercase letters, digits and dashes.`);
     mkdirSync(dir, { recursive: true });
     this.catalogFile = join(dir, `${kitchen}.catalog.json`);
     this.eventsFile = join(dir, `${kitchen}.stock.jsonl`);

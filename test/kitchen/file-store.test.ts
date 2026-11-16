@@ -55,6 +55,11 @@ describe("FileStore", () => {
     expect(store.events()).toHaveLength(1);
     expect(new FileStore(dir, "test", seed).events()).toHaveLength(1);
   });
+  it("won't let the kitchen name leave the data dir", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kitchen-"));
+    for (const name of ["../x", "a/b", "", "-x", "X", "a.b"]) expect(() => new FileStore(dir, name, seed)).toThrow(/kitchen name/i);
+    expect(() => new FileStore(dir, "ruki-2", seed)).not.toThrow();
+  });
   it("names the file when the catalog can't be parsed", () => {
     const dir = mkdtempSync(join(tmpdir(), "kitchen-"));
     writeFileSync(join(dir, "test.catalog.json"), "{oops");
