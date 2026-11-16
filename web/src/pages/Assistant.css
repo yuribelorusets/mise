@@ -50,6 +50,12 @@
 .chat__create-actions .btn {
   flex: 1;
 }
+.chat__error {
+  margin-top: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 4px solid var(--accent);
+  font-weight: 700;
+}
 .chat__compose {
   display: flex;
   gap: var(--space-2);

@@ -1,16 +1,112 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import { useAssistantTurn, useCatalog, useProposals, useSaveRecord } from "../api/hooks";
+import type { NewItemOffer, ProposalView } from "../api/types";
 import ProposalCard from "../components/ProposalCard";
-import { conversation, EVENT_COUNT, type Message, type Proposal } from "../fixtures/assistant";
 import "./Assistant.css";
 
-export default function Assistant() {
-  const [messages, setMessages] = useState<Message[]>(conversation);
-  const [creates, setCreates] = useState<Record<string, "added" | "skipped">>({});
+type Message =
+  | { id: string; from: "owner"; text: string }
+  | { id: string; from: "assistant"; text: string; proposals: ProposalView[]; offers: NewItemOffer[] };
 
-  const patch = (id: string, change: Partial<Proposal>) =>
-    setMessages((ms) =>
-      ms.map((m) => (m.from === "assistant" && m.proposal?.id === id ? { ...m, proposal: { ...m.proposal, ...change } } : m)),
+const SESSION_KEY = "mise.assistant.session";
+const MESSAGES_KEY = "mise.assistant.messages";
+
+const newId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+
+/** One conversation per tab: the id and the messages live in sessionStorage, not in the browser's long-term storage. */
+function sessionId(): string {
+  try {
+    const kept = sessionStorage.getItem(SESSION_KEY);
+    if (kept) return kept;
+    const made = newId();
+    sessionStorage.setItem(SESSION_KEY, made);
+    return made;
+  } catch {
+    return newId();
+  }
+}
+
+function loadMessages(): Message[] {
+  try {
+    return JSON.parse(sessionStorage.getItem(MESSAGES_KEY) ?? "[]") as Message[];
+  } catch {
+    return [];
+  }
+}
+
+const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+function Offer({ offer }: { offer: NewItemOffer }) {
+  const save = useSaveRecord("items");
+  const [state, setState] = useState<"added" | "skipped">();
+  return (
+    <div className="chat__create" role="group" aria-label="New item">
+      {state === "added" ? (
+        <p>
+          <span className="tag">&#10003; Added</span> {offer.name}, counted in {offer.baseUnit}. Repeat the change so it goes on a card.
+        </p>
+      ) : state === "skipped" ? (
+        <p className="muted">Left it off the list.</p>
+      ) : (
+        <>
+          <p><strong>{offer.name}</strong> <span className="muted">new item, unit: {offer.baseUnit}</span></p>
+          {save.error && <p role="alert">{save.error.message}</p>}
+          <div className="chat__create-actions">
+            <button type="button" className="btn" onClick={() => setState("skipped")}>Not now</button>
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={save.isPending}
+              onClick={() =>
+                save.mutate(
+                  { id: slug(offer.name), name: offer.name, aliases: [], baseUnit: offer.baseUnit, units: {}, allergens: [] } as { id: string },
+                  { onSuccess: () => setState("added") },
+                )
+              }
+            >
+              Add {offer.name} ({offer.baseUnit})
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function Assistant() {
+  const [messages, setMessages] = useState<Message[]>(loadMessages);
+  const [text, setText] = useState("");
+  const [session] = useState(sessionId);
+  const turn = useAssistantTurn();
+  const proposals = useProposals();
+  const catalog = useCatalog();
+
+  const live = new Map((proposals.data ?? []).map((p) => [p.id, p]));
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const message = text.trim();
+    if (!message || turn.isPending) return;
+    turn.mutate(
+      { sessionId: session, message },
+      {
+        onSuccess: (reply) => {
+          const next: Message[] = [
+            ...messages,
+            { id: newId(), from: "owner", text: message },
+            { id: newId(), from: "assistant", text: reply.reply, proposals: reply.proposals, offers: reply.offers },
+          ];
+          setMessages(next);
+          setText("");
+          try {
+            sessionStorage.setItem(MESSAGES_KEY, JSON.stringify(next));
+          } catch {
+            // The conversation just won't survive a reload.
+          }
+        },
+      },
     );
+  };
 
   return (
     <>
@@ -25,44 +121,25 @@ export default function Assistant() {
           <div key={m.id} className={`chat__msg chat__msg--${m.from}`}>
             <span className="chat__who">{m.from === "owner" ? "You" : "Mise"}</span>
             <p className="chat__bubble">{m.text}</p>
-            {m.from === "assistant" && m.proposal && (
-              <ProposalCard
-                key={`${m.proposal.id}-${m.proposal.basedOn}`}
-                proposal={m.proposal}
-                events={EVENT_COUNT}
-                onConfirm={() => patch(m.proposal!.id, { status: "confirmed" })}
-                onDiscard={() => patch(m.proposal!.id, { status: "discarded" })}
-                onRefresh={() => patch(m.proposal!.id, { basedOn: EVENT_COUNT })}
-              />
-            )}
-            {m.from === "assistant" && m.create && (
-              <div className="chat__create" role="group" aria-label="New item">
-                {creates[m.id] === "added" ? (
-                  <p><span className="tag">&#10003; Added</span> {m.create.name}, counted in {m.create.unit}s.</p>
-                ) : creates[m.id] === "skipped" ? (
-                  <p className="muted">Left it off the list.</p>
-                ) : (
-                  <>
-                    <p><strong>{m.create.name}</strong> <span className="muted">new item, unit: {m.create.unit}</span></p>
-                    <div className="chat__create-actions">
-                      <button type="button" className="btn" onClick={() => setCreates({ ...creates, [m.id]: "skipped" })}>Not now</button>
-                      <button type="button" className="btn btn--primary" onClick={() => setCreates({ ...creates, [m.id]: "added" })}>
-                        Create {m.create.name}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            {m.from === "assistant" && catalog.data &&
+              m.proposals.map((p) => <ProposalCard key={p.id} proposal={live.get(p.id) ?? p} catalog={catalog.data} />)}
+            {m.from === "assistant" && m.offers.map((o, i) => <Offer key={i} offer={o} />)}
           </div>
         ))}
       </div>
 
-      <form className="chat__compose" onSubmit={(e) => e.preventDefault()}>
+      <form className="chat__compose" onSubmit={submit}>
         <label className="sr-only" htmlFor="assistant-text">Message</label>
-        <input id="assistant-text" className="field" placeholder="2 cases eggs in the walk-in" />
-        <button type="submit" className="btn btn--primary">Send</button>
+        <input
+          id="assistant-text"
+          className="field"
+          placeholder="2 cases eggs in the walk-in"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <button type="submit" className="btn btn--primary" disabled={turn.isPending}>Send</button>
       </form>
+      {turn.error && <p className="chat__error" role="alert">{turn.error.message}</p>}
     </>
   );
 }

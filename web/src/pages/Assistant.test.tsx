@@ -1,44 +1,95 @@
-import { render, screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { beetsReply, eggsReply, openProposal } from "../fixtures/assistant";
+import { stockCatalog } from "../fixtures/items";
+import { fakeApi, type FakeRoutes } from "../test/fake-api";
+import { renderWith } from "../test/render";
 import Assistant from "./Assistant";
 
-const cards = () => screen.getAllByRole("region", { name: "Proposal" });
+function serve(extra: FakeRoutes = {}, calls: string[] = []) {
+  vi.stubGlobal("fetch", fakeApi({
+    "GET /api/kitchen/catalog": () => stockCatalog,
+    "GET /api/kitchen/proposals": () => [],
+    ...extra,
+  }, calls));
+}
 
-test("the stale card can't be confirmed but can be discarded", async () => {
-  render(<Assistant />);
-  const stale = cards().find((c) => within(c).queryByText(/stock changed since this was made/i))!;
-  expect(within(stale).getByRole("button", { name: "Confirm" })).toBeDisabled();
-  expect(within(stale).getByRole("button", { name: "Discard" })).toBeEnabled();
-  await userEvent.click(within(stale).getByRole("button", { name: "Refresh" }));
-  const fresh = cards()[2];
-  expect(within(fresh).queryByText(/stock changed/i)).not.toBeInTheDocument();
-  expect(within(fresh).getByRole("button", { name: "Confirm" })).toBeEnabled();
+afterEach(() => {
+  vi.unstubAllGlobals();
+  sessionStorage.clear();
 });
 
-test("editing a line's amount changes what's shown", async () => {
-  render(<Assistant />);
-  const open = cards()[0];
-  const eggs = within(open).getByRole("listitem", { name: "Receive Eggs" });
-  const amount = within(eggs).getByLabelText("Amount");
-  expect(amount).toHaveValue(2);
-  await userEvent.clear(amount);
-  await userEvent.type(amount, "3");
-  expect(amount).toHaveValue(3);
-  await userEvent.click(within(open).getByRole("button", { name: "Confirm" }));
-  expect(within(cards()[0]).getByText("Booked")).toBeInTheDocument();
-  expect(within(cards()[0]).getByRole("listitem", { name: "Receive Eggs" })).toHaveTextContent(/3\s*case/);
+const send = async (text: string) => {
+  await userEvent.type(await screen.findByLabelText("Message"), text);
+  await userEvent.click(screen.getByRole("button", { name: "Send" }));
+};
+
+test("sending a message shows the reply and a proposal card", async () => {
+  const sent: { sessionId: string; message: string }[] = [];
+  serve({ "POST /api/kitchen/assistant": (b) => (sent.push(b), eggsReply) });
+  renderWith(<Assistant />);
+  await send("two cases eggs");
+  expect(await screen.findByText(eggsReply.reply)).toBeInTheDocument();
+  expect(screen.getByText("two cases eggs")).toBeInTheDocument();
+  expect(await screen.findByRole("region", { name: "Proposal" })).toBeInTheDocument();
+  expect(sent[0].message).toBe("two cases eggs");
+  expect(sent[0].sessionId).toMatch(/\S{8,}/);
+  expect(screen.getByLabelText("Message")).toHaveValue("");
 });
 
-test("a confirmed card is read-only with a done mark", () => {
-  render(<Assistant />);
-  const done = cards()[1];
-  expect(within(done).getByText(/done/i)).toBeInTheDocument();
-  expect(within(done).queryByRole("button")).not.toBeInTheDocument();
-  expect(within(done).queryByRole("spinbutton")).not.toBeInTheDocument();
+test("the card follows the live proposal list over the copy that came with the message", async () => {
+  const live = { ...eggsReply.proposals[0], status: "confirmed" as const };
+  serve({ "POST /api/kitchen/assistant": () => eggsReply, "GET /api/kitchen/proposals": () => [live] });
+  renderWith(<Assistant />);
+  await send("two cases eggs");
+  expect(await screen.findByText("Booked")).toBeInTheDocument();
 });
 
-test("offers to create an unknown item", async () => {
-  render(<Assistant />);
-  await userEvent.click(screen.getByRole("button", { name: "Create Pickled beets" }));
-  expect(within(screen.getByRole("group", { name: "New item" })).getByText(/counted in jars/)).toBeInTheDocument();
+test("the same session id goes with every message in a tab", async () => {
+  const ids: string[] = [];
+  serve({ "POST /api/kitchen/assistant": (b) => (ids.push(b.sessionId), { ...eggsReply, proposals: [] }) });
+  renderWith(<Assistant />);
+  await send("one");
+  await waitFor(() => expect(ids).toHaveLength(1));
+  await send("two");
+  await waitFor(() => expect(ids).toHaveLength(2));
+  expect(ids[1]).toBe(ids[0]);
+});
+
+test("the conversation survives a reload of the tab", async () => {
+  serve({ "POST /api/kitchen/assistant": () => ({ ...eggsReply, proposals: [] }) });
+  const first = renderWith(<Assistant />);
+  await send("two cases eggs");
+  await screen.findByText(eggsReply.reply);
+  first.unmount();
+  renderWith(<Assistant />);
+  expect(await screen.findByText(eggsReply.reply)).toBeInTheDocument();
+  expect(screen.getByText("two cases eggs")).toBeInTheDocument();
+});
+
+test("an offer to add an item posts it, and says to repeat the change", async () => {
+  const saved: unknown[] = [];
+  serve({ "POST /api/kitchen/assistant": () => beetsReply, "POST /api/kitchen/catalog/items": (b) => (saved.push(b), stockCatalog) });
+  renderWith(<Assistant />);
+  await send("6 jars pickled beets");
+  const offer = await screen.findByRole("group", { name: "New item" });
+  await userEvent.click(within(offer).getByRole("button", { name: "Add Pickled beets (g)" }));
+  await waitFor(() => expect(saved).toEqual([{ id: "pickled-beets", name: "Pickled beets", aliases: [], baseUnit: "g", units: {}, allergens: [] }]));
+  expect(await within(offer).findByText(/added/i)).toBeInTheDocument();
+  expect(within(offer).getByText(/repeat the change/i)).toBeInTheDocument();
+});
+
+test("a failed turn shows the server's error and keeps what was typed", async () => {
+  serve({ "POST /api/kitchen/assistant": () => ({ status: 429, error: "You're sending messages too fast. Try again in a minute." }) });
+  renderWith(<Assistant />);
+  await send("two cases eggs");
+  expect(await screen.findByRole("alert")).toHaveTextContent("You're sending messages too fast.");
+  expect(screen.getByLabelText("Message")).toHaveValue("two cases eggs");
+});
+
+test("an open proposal from an earlier turn can still be booked from its card", async () => {
+  serve({ "POST /api/kitchen/assistant": () => ({ ...eggsReply, proposals: [openProposal] }), "GET /api/kitchen/proposals": () => [openProposal] });
+  renderWith(<Assistant />);
+  await send("delivery");
+  expect(await screen.findByRole("button", { name: "Confirm" })).toBeEnabled();
 });
