@@ -140,6 +140,16 @@ describe("ledger", () => {
     expect(after.turns).toEqual([]);
   });
 
+  it("also clears notes and session ids on old orders", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mise-"));
+    appendFileSync(join(dir, "ruki.jsonl"), JSON.stringify({ kind: "order", at: "2026-01-01T00:00:00Z",
+      value: { id: "RK-OLD002", name: "Anya", phone: "510-555-0100", notes: "Anya, call 510-555-0100", sessionId: "s-1", items: [], total: 12 } }) + "\n");
+    new Ledger(dir, "ruki").compact(new Date("2026-12-04T18:00:00-08:00"), 90);
+    const text = readFileSync(join(dir, "ruki.jsonl"), "utf8");
+    expect(text).not.toMatch(/510-555-0100|Anya|s-1/);
+    expect(new Ledger(dir, "ruki").orders[0]).toMatchObject({ id: "RK-OLD002", total: 12 });
+  });
+
   it("refuses a retention that isn't a number of days, and keeps today's turns", () => {
     const dir = mkdtempSync(join(tmpdir(), "mise-"));
     const now = new Date("2026-12-04T18:00:00-08:00");

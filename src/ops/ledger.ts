@@ -23,6 +23,12 @@ type Entry =
   | { kind: "order"; at: string; value: Order }
   | { kind: "turn"; at: string; value: TurnLog };
 
+/** An old order keeps its id, items, total and pickup slot (so stock and totals still add up), and nothing that says who ordered. */
+const redact = (o: Order): Order => {
+  const { notes: _notes, sessionId: _sessionId, ...rest } = o;
+  return { ...rest, name: "[removed]", phone: "" };
+};
+
 /** Days to keep chats and guest details: MISE_RETAIN_DAYS if it's a number of at least 1, otherwise 90. */
 export function retainDays(raw = process.env.MISE_RETAIN_DAYS): number {
   if (raw === undefined) return 90;
@@ -78,7 +84,7 @@ export class Ledger implements Recorder {
     const old = (e: Entry) => !(Date.parse(e.at) >= cutoff); // an unreadable timestamp counts as old
     this.entries = this.entries
       .filter((e) => !(e.kind === "turn" && old(e)))
-      .map((e) => (e.kind === "order" && old(e) ? { ...e, value: { ...e.value, name: "[removed]", phone: "" } } : e));
+      .map((e) => (e.kind === "order" && old(e) ? { ...e, value: redact(e.value) } : e));
     const tmp = `${this.file}.tmp`;
     writeFileSync(tmp, this.entries.map((e) => JSON.stringify(e) + "\n").join(""));
     renameSync(tmp, this.file);
