@@ -49,8 +49,9 @@ export async function runScenario(s: Scenario, variant: { label: string; llm: st
     turns.push({ user, reply: r.reply, toolCalls: r.toolCalls });
     return r.reply;
   };
+  if (variant.llm === "mock" && (s.simulate || s.tags?.includes("live")))
+    return { id: s.id, restaurant: config.id, tags: s.tags ?? [], variant: variant.label, trial, pass: true, skipped: true, checks: [], turns: [], ms: 0, tokens: 0 };
   if (s.simulate) {
-    if (variant.llm === "mock") return { id: s.id, restaurant: config.id, tags: s.tags ?? [], variant: variant.label, trial, pass: true, skipped: true, checks: [], turns: [], ms: 0, tokens: 0 };
     const guest = simulatedGuest(makeLLM(variant.llm, process.env.MISE_SIM_MODEL ?? variant.model, config), s.simulate);
     let msg = await guest.next();
     for (let i = 0; msg && i < guest.maxTurns; i++) msg = await guest.next(await say(msg));
@@ -97,7 +98,7 @@ async function main() {
         const r = await runScenario(s, v, t, values.judge);
         results.push(r);
         const failed = r.checks.filter((c) => !c.pass);
-        if (r.skipped) { console.log(`\x1b[33mSKIP\x1b[0m ${v.label.padEnd(20)} ${s.id} (simulated guest needs a real model)`); break; }
+        if (r.skipped) { console.log(`\x1b[33mSKIP\x1b[0m ${v.label.padEnd(20)} ${s.id} (needs a real model)`); break; }
         console.log(`${r.pass ? "\x1b[32mPASS\x1b[0m" : "\x1b[31mFAIL\x1b[0m"} ${v.label.padEnd(20)} ${s.id}${trials > 1 ? ` #${t}` : ""}`);
         for (const f of failed) console.log(`       ✗ ${f.check}${f.detail ? `  (${f.detail})` : ""}`);
       }

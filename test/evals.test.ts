@@ -17,3 +17,8 @@ describe("eval suite (mock)", async () => {
       expect(r.checks.filter((c) => !c.pass)).toEqual([]);
     });
 });
+
+it("skips scenarios tagged live on the mock instead of faking a pass", async () => {
+  const r = await runScenario({ id: "needs-claude", restaurant: "ruki", tags: ["live"], turns: ["hi"], expect: { reply_matches: ["never"] } }, { label: "mock", llm: "mock" });
+  expect(r.skipped).toBe(true);
+});
