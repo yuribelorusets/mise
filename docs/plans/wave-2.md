@@ -840,7 +840,7 @@ Everything below is under `/api/kitchen` and behind `requireOwner`. Bodies and a
 | `GET /catalog` | | `Catalog` |
 | `POST /catalog/:kind` | `kind` is `items`, `locations`, `recipes` or `plans`; the body is one record | Adds it or replaces the one with that id. `validateCatalog` on the result: 422 `{ error, errors }` if it fails. Otherwise `Catalog`. |
 | `DELETE /catalog/:kind/:id` | | Removes it, same validation (deleting an item a recipe uses is a 422). `Catalog`. |
-| `GET /stock` | | `StockView`: `{ basedOn: number; onHand: OnHand; lastCounted: Record<string, Record<string, string>> }`, the last count time per item and location |
+| `GET /stock` | | `StockView`: `{ basedOn: number; onHand: OnHand; lastCount: Record<string, Record<string, { qty: number; at: string }>>; lastReceived: Record<string, string> }`. `lastCount` is per item and location, so count rows can start at the last count (owner's decision); `lastReceived` is the time of each item's latest `receive`, for the age and expiry flags. |
 | `GET /stock/:item/history` | | The item's last 50 `StockEvent`s, newest first |
 | `POST /counts` | `{ clientId, location, lines: { item, qty, unit }[] }` | The count screen writes directly: it's the owner typing, not a model. Every line is checked as a `count` with `checkLine`; any problem is a 422 with `problems` and nothing written. Event ids are `count-${clientId}-${i}`, so a retried save writes once. `clientId` must match `/^[a-z0-9-]{8,64}$/`. Answer: `{ events: string[] }`. |
 | `GET /today` | | `TodayView`, below |
@@ -1062,7 +1062,7 @@ Each tool takes ids or names (`"eggs"`, `"Eggs"` and `"яйца"` if it's an ali
 | `find_item` | `{ name }` | `{ found: true, item: { id, name, baseUnit, units } }` or `{ found: false, hint: "Not in the catalog. Ask the owner whether to add it (offer_new_item). Don't pick a similar item." }` |
 | `on_hand` | `{ item?, location? }` | With `item`: `{ item, name, baseUnit, total, byLocation }`. Without: every item with stock, `{ items: [{ item, name, baseUnit, total }] }`, at most 100. |
 | `shopping_list` | `{ date? }` | For the plan on `date`, or the next plan on or after today: `{ date, lines: [{ item, name, need, have, buy, buyQty?, buyUnit? }] }`, from `explode`. No plan: `{ date: null, lines: [], note: "No production plan ahead." }` |
-| `prep_list` | `{ date? }` | The same plan's `prep`, with `recipeName` |
+| `prep_list` | `{ date? }` | `{ date, tasks }`: the same plan's `prep`, each with `recipeName` |
 | `max_batch` | `{ item, unit? }` | `{ item, unit, max }`, `max: null` when stock doesn't limit it. `unit` defaults to the item's first own unit (`order` for syrniki), else its base unit. |
 | `cost` | `{ item, qty, unit }` | `batchCost`, plus `perUnit` = `cost / qty` rounded to cents, plus `missing` names for items with no price yet |
 
