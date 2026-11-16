@@ -127,32 +127,6 @@ npm run loadtest            # 300 simultaneous guests against a limited batch
 MISE_RESTAURANT=ruki ADMIN_TOKEN=dev npm start   # the pop-up; dashboard at /admin?token=dev
 ```
 
-### How it's tested, and what testing found
-
-An agent that works in a demo can still fail a real customer in a dozen boring ways. I attacked Mise the way production agents get attacked, wrote each attack as a failing test first, then fixed it. Categories come from the [OWASP Top 10 for LLM Applications](https://genai.owasp.org/llm-top-10/), [τ-bench](https://arxiv.org/abs/2406.12045)'s reliability work, and Anthropic's [guidance on agent evals](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
-
-| Layer | What it checks | Where |
-|---|---|---|
-| Scenario evals | 33 conversations, graded on the **end state** (what orders and bookings exist afterwards), not just the reply text. Always on: the agent never shows a guest an order code the system didn't issue | `evals/scenarios/` |
-| Red team | Free-LLM abuse, another guest's data, fake "SYSTEM:" messages, prompt extraction, repeated "yes", nearly sold-out batch, full window, booking in the past | `redteam.yaml` |
-| Simulated guests | A second model plays a guest with a persona and goal (a Russian-speaking grandmother who changes her mind, a celiac guest, a parent flexible on time) | `--tag simulated` |
-| Reliability | `--trials k` reports **pass^k**: the share of scenarios that pass every time. A guest only gets one run, so 90% means 1 in 10 guests gets it wrong | `npm run eval -- --trials 4` |
-| Fault injection | The model dies mid-turn, hangs, returns nothing, loops on tools, invents a tool; the CRM hangs | `test/robustness.test.ts` |
-| Invariants | Property-based tests (fast-check) throw thousands of random order sequences at the store: no overselling, no overfilled window, no mispriced order, no overbooked slot. Random text never crashes the agent | `test/robustness.test.ts` |
-| Load | 1,500 guests, 150 at a time, racing for 60 pickup spots through the real HTTP server | `npm run loadtest` |
-
-**Bugs the attacks found, all fixed with a regression test:**
-
-1. **"Tonight" meant tomorrow after 4pm.** The date was computed in UTC, which flips at 4pm in California, right before dinner.
-2. **A double-click broke the conversation for good.** Two messages at once interleaved the history, and the API rejected every later message. Turns are now serialized per conversation.
-3. **A model outage right after placing an order showed the guest an error.** They'd retry and order twice. Turns are now transactional, and if the model dies after an order goes through, the guest still gets their confirmation, written by code.
-4. **A slow CRM made guests wait.** Webhooks ran inline with retries and no timeout. They're now delivered in the background with a 5-second timeout per attempt.
-5. **Saying "yes" twice placed two orders.** Orders are now idempotent per conversation.
-6. **Splitting one item across lines oversold the batch.** "15 syrniki + 15 сырники + 15 Babushka's Syrniki" passed each line's stock check separately.
-7. **Impossible bookings went through:** February 30th, yesterday, next year, a party size of "lots". The tools now refuse them, whatever the model sends.
-8. **A model could confirm an order that doesn't exist.** Replies are now checked, and any order code the system didn't issue is blocked.
-9. **Slow leaks:** an unbounded in-memory webhook log, unbounded conversation history (cost per message grew every turn), and the SDK's default 10-minute timeout.
-
 ## Run it for a real pop-up
 
 1. Copy `data/restaurants/ruki.json`, then set the menu, prices, batch sizes, date, address, pickup windows, cutoff and (optionally) a payment link. Delete `"draft": true`.
