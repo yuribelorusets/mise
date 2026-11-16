@@ -46,5 +46,6 @@ export function daysBetween(from: string, to: string): number {
 }
 
 export function showMoney(dollars: number): string {
-  return `$${dollars.toFixed(2)}`;
+  // The nudge keeps a half cent that binary floats store just under (38.635) rounding up.
+  return `$${(Math.round(dollars * 100 + 1e-6) / 100).toFixed(2)}`;
 }
