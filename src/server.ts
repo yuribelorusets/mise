@@ -2,7 +2,7 @@ import express from "express";
 import type { LLM } from "./llm/types.js";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
-import { loadRestaurant, RestaurantStore, type RestaurantConfig } from "./domain/restaurant.js";
+import { loadRestaurant, localDate, RestaurantStore, type RestaurantConfig } from "./domain/restaurant.js";
 import { WebhookClient } from "./integrations/webhook.js";
 import { runTurn, type Session } from "./agent/agent.js";
 import { makeLLM, now } from "./config.js";
@@ -11,6 +11,10 @@ import { costUsd } from "./ops/pricing.js";
 import { RateLimiter, limitsFromEnv, type Limits } from "./ops/guardrails.js";
 import { adminRouter } from "./ops/admin.js";
 import { jsonOnly, sameOrigin } from "./ops/request-guards.js";
+import { join } from "node:path";
+import { kitchenRouter } from "./kitchen/api.js";
+import { ProposalBook } from "./kitchen/proposals.js";
+import { createKitchenAssistant } from "./kitchen/assistant/index.js";
 import { ownerAuth } from "./ops/owner-auth.js";
 import { FileStore } from "./kitchen/file-store.js";
 import { MemoryStore } from "./kitchen/memory-store.js";
@@ -24,6 +28,8 @@ export interface AppOptions {
   ledger?: Ledger;
   limits?: Partial<Limits>;
   kitchen?: KitchenStore;
+  /** For tests: a proposal book the test can create proposals in. */
+  proposals?: ProposalBook;
   /** Signs the owner in to /api/kitchen. Without one (here or in MISE_OWNER_PASSCODE) sign-in answers 503. */
   ownerPasscode?: string;
   secureCookies?: boolean;
@@ -154,9 +160,10 @@ export function createApp(opts: AppOptions = {}) {
     }
   });
 
-  // Placeholder until the kitchen routes arrive.
   const kitchen = opts.kitchen ?? kitchenStore(config.id);
-  app.get("/api/kitchen/catalog", owner.requireOwner, (_req, res) => res.json(kitchen.catalog()));
+  const proposals = opts.proposals ?? new ProposalBook(kitchen, { file: process.env.DATA_DIR ? join(process.env.DATA_DIR, `${config.id}.proposals.json`) : undefined });
+  const assistant = createKitchenAssistant({ store: kitchen, proposals, llm, now });
+  app.use("/api/kitchen", owner.requireOwner, kitchenRouter({ store: kitchen, proposals, assistant, orders: () => store.orders, today: () => localDate(now(), config.timezone), ledger, limits }));
 
   app.use("/admin", adminRouter({ config, store, ledger, limits, publicDir: PUBLIC_DIR }));
 
