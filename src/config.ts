@@ -6,7 +6,8 @@ import { MockLLM } from "./llm/mock.js";
 import type { RestaurantConfig } from "./domain/restaurant.js";
 
 // Load .env (ANTHROPIC_API_KEY etc.) if present. Real environment variables still win.
-if (existsSync(".env")) loadEnvFile(".env");
+// Tests skip it: a developer's .env would point them at a real ledger and a real API key.
+if (existsSync(".env") && !process.env.VITEST) loadEnvFile(".env");
 
 /** Picks the model: Claude when a key is present (or MISE_LLM=anthropic), otherwise the offline mock. */
 export function makeLLM(kind = process.env.MISE_LLM, model?: string, config?: RestaurantConfig): LLM {
