@@ -87,6 +87,32 @@ describe("preorder caps", () => {
   });
 });
 
+describe("caps and retention together", () => {
+  it("a retry in the same session gets the original order back instead of hitting the phone cap", () => {
+    const s = new RestaurantStore(ruki);
+    const place = () => s.placeOrder({ name: "Anya", phone: "510-555-0100", items: [{ item: "syrniki", quantity: 2 }], pickupTime: "11:00", sessionId: "same" }, BEFORE_CUTOFF);
+    const first = place();
+    expect(place()).toMatchObject({ id: first.id, duplicate: true });
+    expect(place()).toMatchObject({ id: first.id, duplicate: true });
+    expect(s.orders).toHaveLength(1);
+  });
+
+  it("redacted old orders still count against stock and window capacity after a restart", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mise-"));
+    const ledger = new Ledger(dir, "ruki");
+    const first = new RestaurantStore(ruki, { history: ledger, recorder: ledger });
+    order(first, "syrniki", 6, "10:00");
+    // Pretend a month passed: compact with a retention shorter than the order's age.
+    const later = new Date(Date.now() + 40 * 86_400_000);
+    ledger.compact(later, 30);
+    const again = new Ledger(dir, "ruki");
+    expect(again.orders[0]).toMatchObject({ name: "[removed]", phone: "" });
+    const second = new RestaurantStore(ruki, { history: again, recorder: again });
+    expect(second.remaining("syrniki")).toBe(34);
+    expect(second.windows(BEFORE_CUTOFF).find((w) => w.time === "10:00")?.left).toBe(ruki.popup.ordersPerWindow - 1);
+  });
+});
+
 describe("ledger", () => {
   it("replays orders after a restart, so a sold-out batch stays sold out", () => {
     const dir = mkdtempSync(join(tmpdir(), "mise-"));
