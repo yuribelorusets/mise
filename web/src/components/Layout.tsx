@@ -9,7 +9,7 @@ export default function Layout() {
         <Outlet />
       </main>
       <Link to="/assistant" className="layout__assistant">
-        Assistant
+        Ask the assistant
       </Link>
       <TabBar />
     </div>
