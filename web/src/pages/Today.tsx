@@ -36,7 +36,7 @@ export default function Today() {
           </thead>
           <tbody>
             {shortfalls.map((s) => {
-              const meta = itemInfo[s.item];
+              const meta = itemInfo[s.item] ?? { name: s.item, base: "each" as const };
               const cell = (n: number) => {
                 const q = showQty(n, meta.base);
                 return (

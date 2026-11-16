@@ -8,6 +8,14 @@ const stub = (res: Response) => {
   return fn;
 };
 
+const failure = (p: Promise<unknown>) =>
+  p.then(
+    () => {
+      throw new Error("expected the request to fail");
+    },
+    (e: ApiError) => e,
+  );
+
 test("a 204 returns undefined instead of throwing", async () => {
   stub(new Response(null, { status: 204 }));
   await expect(apiPost("/api/x", {})).resolves.toBeUndefined();
@@ -20,7 +28,7 @@ test("an empty 200 body returns undefined", async () => {
 
 test("a 4xx uses the error from the JSON body and keeps the status", async () => {
   stub(new Response(JSON.stringify({ error: "Unknown item" }), { status: 422 }));
-  const err = await apiGet("/api/x").catch((e) => e);
+  const err = await failure(apiGet("/api/x"));
   expect(err).toBeInstanceOf(ApiError);
   expect(err.status).toBe(422);
   expect(err.message).toBe("Unknown item");
@@ -28,7 +36,7 @@ test("a 4xx uses the error from the JSON body and keeps the status", async () =>
 
 test("a non-JSON error body still throws an ApiError with the status", async () => {
   stub(new Response("oops", { status: 500 }));
-  const err = await apiGet("/api/x").catch((e) => e);
+  const err = await failure(apiGet("/api/x"));
   expect(err).toBeInstanceOf(ApiError);
   expect(err.status).toBe(500);
 });
