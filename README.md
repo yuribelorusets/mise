@@ -19,7 +19,7 @@ It runs a pop-up from one config file:
 | **Takes preorders for a pop-up** | Offers only pickup windows with spots left, stops selling an item when the batch is gone, closes at the cutoff, and can attach a payment link |
 | **Answers menu and allergy questions** | Only from the menu data, filters by allergen, warns about cross-contact, and says plainly when a dish doesn't exist |
 | **Takes pickup orders** | Validates every item against the menu and prices the order server-side |
-| **Speaks four languages** | English, Spanish, Russian and French |
+| **Speaks English and Russian** | The languages Ruki's guests order in |
 | **Escalates** | Refunds, complaints and large parties go to a human |
 | **Integrates** | Signed CRM webhooks for every order and handoff |
 | **Shows the owner what happened** | `/admin`: revenue, conversion, prep list, per-window pickup sheet (printable), orders, full transcripts, handoffs, cost per conversation and per order, CSV export |

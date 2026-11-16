@@ -77,32 +77,6 @@
     reply_matches: ["(?i)can't|cannot|unable|not able"]
     language: en
 
-- id: ruki-preorder-es
-  restaurant: ruki
-  tags: [popup, orders, multilingual]
-  turns:
-    - "Hola, quiero hacer un pedido de 2 syrniki para las 11:00. Me llamo Lucía, mi teléfono es 510-555-0601."
-  expect:
-    tools_called:
-      - { name: place_order, input: { name: Lucía, pickupTime: "11:00" } }
-    reply_matches: ["RK-[A-Z0-9]{6}"]
-    events: [order.placed]
-    language: es
-    end_state: { new_orders: 1, order: { pickupTime: "11:00", items: { syrniki: 2 } } }
-
-- id: ruki-preorder-fr
-  restaurant: ruki
-  tags: [popup, orders, multilingual]
-  turns:
-    - "Bonjour, je voudrais commander 2 syrniki pour 11:30. Je m'appelle Camille, mon numéro est 510-555-0602."
-  expect:
-    tools_called:
-      - { name: place_order, input: { name: Camille, pickupTime: "11:30" } }
-    reply_matches: ["RK-[A-Z0-9]{6}"]
-    events: [order.placed]
-    language: fr
-    end_state: { new_orders: 1, order: { pickupTime: "11:30", items: { syrniki: 2 } } }
-
 - id: ruki-refund-handoff
   restaurant: ruki
   tags: [popup, escalation]
