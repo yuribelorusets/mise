@@ -1772,7 +1772,7 @@ remaining(itemId: string): number | undefined {
   if (!m) return undefined;
   const sold = this.orders.flatMap((o) => o.items).filter((l) => l.id === itemId).reduce((s, l) => s + l.quantity, 0);
   const byQuantity = m.quantity === undefined ? undefined : Math.max(0, m.quantity - sold);
-  const fromStock = m.makes && this.config.popup.sellFromStock !== false ? this.capacity?.(m) : undefined;
+  const fromStock = m.makes && this.config.popup.sellFromStock === true ? this.capacity?.(m) : undefined;
   const limits = [byQuantity, fromStock].filter((n): n is number => n !== undefined && Number.isFinite(n));
   return limits.length ? Math.max(0, Math.floor(Math.min(...limits))) : undefined;
 }
@@ -1792,7 +1792,7 @@ export function orderCapacity(c: Catalog, available: Record<string, number>, pla
 
 `createApp` passes `capacity: (m) => orderCapacity(kitchen.catalog(), totals(onHand(kitchen.events())), planLines(<the event date's plan>, eventDate, store.orders, config.menu), m.makes!)`. Cache the answer per menu item, keyed by the event count, the order count and the catalog's JSON length, since `searchMenu` asks for every item on every call and the load test hits it 300 times.
 
-`popup.sellFromStock` is `true` in `ruki.json`. Setting it to `false` goes back to `quantity` alone, for a week when preorders open before the stock is in (owner checkpoint).
+Selling from stock is opt-in (owner's decision): `popup.sellFromStock` is `false` in `ruki.json`, so guests can order up to the menu `quantity` even before the week's delivery is logged. Setting it to `true` adds the stock limit.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1805,26 +1805,26 @@ it("sells only what's left after the plan and earlier preorders", () => {
 it("is Infinity when the recipe needs nothing on hand", () => { /* the tea recipe from G1 */ });
 
 // test/popup.test.ts
+const on = { ...ruki, popup: { ...ruki.popup, sellFromStock: true } };
 it("sells out when the kitchen can't make more, even under the menu quantity", () => {
-  const store = new RestaurantStore(ruki, { capacity: (m) => (m.id === "syrniki" ? 2 : undefined) });
+  const store = new RestaurantStore(on, { capacity: (m) => (m.id === "syrniki" ? 2 : undefined) });
   expect(store.remaining("syrniki")).toBe(2);
   expect(() => store.placeOrder({ name: "Sam", phone: "510-555-0202", items: [{ item: "syrniki", quantity: 3 }], pickupTime: "11:00" }, NOW)).toThrow(/Only 2 Syrniki left/);
 });
 it("keeps the menu quantity as a cap when stock would allow more", () => {
-  const store = new RestaurantStore(ruki, { capacity: () => 500 });
+  const store = new RestaurantStore(on, { capacity: () => 500 });
   expect(store.remaining("syrniki")).toBe(40);
 });
-it("falls back to the menu quantity when sellFromStock is off", () => {
-  const off = { ...ruki, popup: { ...ruki.popup, sellFromStock: false } };
-  expect(new RestaurantStore(off, { capacity: () => 0 }).remaining("syrniki")).toBe(40);
+it("ignores stock unless sellFromStock is on, as in ruki.json", () => {
+  expect(new RestaurantStore(ruki, { capacity: () => 0 }).remaining("syrniki")).toBe(40);
 });
 it("treats Infinity from stock as no stock limit", () => {
-  const noQty = { ...ruki, menu: ruki.menu.map((m) => (m.id === "syrniki" ? { ...m, quantity: undefined } : m)) };
+  const noQty = { ...on, menu: on.menu.map((m) => (m.id === "syrniki" ? { ...m, quantity: undefined } : m)) };
   expect(new RestaurantStore(noQty, { capacity: () => Infinity }).remaining("syrniki")).toBeUndefined();
 });
 ```
 
-  And one end-to-end test through `createApp` with a `MemoryStore` kitchen holding stock for 3 orders: the third chat order for one syrniki succeeds and the fourth is refused as sold out.
+  And one end-to-end test through `createApp`, with `sellFromStock: true` and a `MemoryStore` kitchen holding stock for 3 orders: the third chat order for one syrniki succeeds and the fourth is refused as sold out.
 - [ ] **Step 2:** Run them. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4:** `npm test && npm run loadtest -- 300 50 && npm run eval -- --llm mock --max-usd 0.01`. Expected: PASS. The eval runner builds its `RestaurantStore` without `capacity`, so `ruki.yaml`'s sold-out scenarios keep working from `quantity`.
@@ -1846,7 +1846,7 @@ it("treats Infinity from stock as no stock limit", () => {
 - **Before step 0:** read the proposal lifecycle in D3, especially the stale rule (only newer events for the proposal's own items count).
 - **Before D merges:** pick a passcode of 8 or more characters and set `MISE_OWNER_PASSCODE` where Mise runs. Sessions last 30 days and end on restart.
 - **When F is ready:** look at the sign-in screen, which has no mockup, and the discarded-proposal stub. Everything else follows the approved mockups.
-- **Before G3 merges:** decide whether preorders should sell from what's on hand now. If preorders open before the week's delivery, stock on hand will say "sold out" too early. `popup.sellFromStock: false` keeps the menu `quantity` until then.
+- **Decided:** preorders sell up to the menu `quantity` only; selling from stock on hand stays off (`popup.sellFromStock: false`) until the owner turns it on. The assistant proposes stock changes only this wave, not plan changes.
 - **Before G2's `makes` covers more than syrniki:** Ruki's real recipes and yields for nalysnyky, the schmears and the bagels, which replace the drafts in `data/kitchens/ruki.json`.
 - **Before any live eval run:** the `--max-usd` amount. The kitchen scenarios tagged `live` run on Haiku first.
 - Any high-severity security finding.
