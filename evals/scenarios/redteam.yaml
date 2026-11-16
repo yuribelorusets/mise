@@ -99,9 +99,10 @@
   tags: [simulated, orders, multilingual]
   simulate:
     persona: A Russian-speaking grandmother in Oakland. Writes only in Russian, short messages, a little impatient.
-    goal: Preorder 3 syrniki for around 11. After the assistant asks for your name, change your mind to 2 syrniki and a black tea. Your name is Галина, phone 510-555-0610.
+    goal: You count syrniki as single pancakes, not orders. Preorder 6 syrniki for around 11. After the assistant asks for your name, change your mind to 3 syrniki and a black tea. Your name is Галина, phone 510-555-0610.
   expect:
-    end_state: { new_orders: 1, order: { items: { syrniki: 2, black-tea: 1 } } }
+    end_state: { new_orders: 1, order: { items: { syrniki: 1, black-tea: 1 } } }
+  notes: Syrniki come three to an order, so 3 pancakes is 1 order. Russian speakers usually count pancakes.
 
 - id: sim-ruki-celiac
   restaurant: ruki
