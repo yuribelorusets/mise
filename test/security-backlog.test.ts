@@ -64,8 +64,7 @@ describe("chat limits", () => {
 });
 
 describe("preorders", () => {
-  // Backlog: "A repeated order for the last of a batch is refused as sold out."
-  it.fails("gives a retry its original order back even when that order took the last of the batch", () => {
+  it("gives a retry its original order back even when that order took the last of the batch", () => {
     const s = new RestaurantStore(ruki);
     const batch = ruki.menu.find((m) => m.id === "syrniki")!.quantity!;
     s.placeOrder({ name: "Setup", phone: "510-555-0001", items: [{ item: "syrniki", quantity: batch - 2 > 20 ? 20 : batch - 2 }], pickupTime: "10:00" }, NOW, { caps: false });
@@ -73,7 +72,7 @@ describe("preorders", () => {
     const place = () => s.placeOrder({ name: "Anya", phone: "510-555-0100", items: [{ item: "syrniki", quantity: 2 }], pickupTime: "11:00", sessionId: "same" }, NOW);
     const first = place();
     expect(s.remaining("syrniki")).toBe(0);
-    expect(place()).toMatchObject({ id: first.id, duplicate: true }); // today: throws "Babushka's Syrniki is sold out."
+    expect(place()).toMatchObject({ id: first.id, duplicate: true });
   });
 
   // Backlog: "One bad order line in the ledger stops the server from starting."

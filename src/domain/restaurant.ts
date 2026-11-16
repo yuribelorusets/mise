@@ -164,15 +164,10 @@ export class RestaurantStore {
     const lines = [...qty].map(([id, quantity]) => {
       const m = this.config.menu.find((x) => x.id === id)!;
       if (quantity > 20) throw new Error(`Invalid quantity for ${m.name}: 20 is the most per order.`);
-      const left = this.remaining(m.id);
-      if (left !== undefined && quantity > left) throw new Error(left === 0 ? `${m.name} is sold out.` : `Only ${left} ${m.name} left.`);
       return { id: m.id, name: m.name, quantity, price: m.price };
     });
 
     const pickupTime = o.pickupTime ? normTime(o.pickupTime) : undefined;
-    if (now.getTime() > Date.parse(c.popup.orderCutoff)) throw new Error("Preorders are closed for this pop-up.");
-    if (!pickupTime) throw new Error(`Pick a pickup window: ${c.popup.pickupWindows.join(", ")}.`);
-    const pickupDate = c.popup.eventDate;
 
     // The same conversation placing the same order again (a repeated "yes", a retried tool call) gets the original back.
     const same = (x: Order) =>
@@ -180,6 +175,14 @@ export class RestaurantStore {
       JSON.stringify(x.items.map((l) => [l.id, l.quantity]).sort()) === JSON.stringify(lines.map((l) => [l.id, l.quantity]).sort());
     const dupe = o.sessionId && this.orders.find((x) => same(x) && now.getTime() - Date.parse(x.createdAt ?? "0") < 60 * 60_000);
     if (dupe) return { ...dupe, duplicate: true };
+
+    if (now.getTime() > Date.parse(c.popup.orderCutoff)) throw new Error("Preorders are closed for this pop-up.");
+    if (!pickupTime) throw new Error(`Pick a pickup window: ${c.popup.pickupWindows.join(", ")}.`);
+    const pickupDate = c.popup.eventDate;
+    for (const l of lines) {
+      const left = this.remaining(l.id);
+      if (left !== undefined && l.quantity > left) throw new Error(left === 0 ? `${l.name} is sold out.` : `Only ${left} ${l.name} left.`);
+    }
 
     if (opts.caps !== false) {
       const maxPerPhone = c.popup.maxOrdersPerPhone ?? 2;
