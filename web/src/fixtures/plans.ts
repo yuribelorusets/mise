@@ -1,6 +1,5 @@
-import type { PrepTask, ShoppingLine } from "../api/types";
+import type { PlanResult, ProductionPlan } from "../api/types";
 import { prepTasks, shortfalls } from "./ruki";
-import type { ProductionPlan } from "./types";
 
 // Saturday's preorder lines add up to the six preorders on Today.
 export const plans: ProductionPlan[] = [
@@ -29,24 +28,21 @@ export const plans: ProductionPlan[] = [
   },
 ];
 
-export interface PlanSummary {
-  prep: PrepTask[];
-  shortfalls: ShoppingLine[];
-}
-
-/** What the kitchen core would work out for each plan: prep to do and what's short. */
-export const planSummaries: Record<string, PlanSummary> = {
-  "plan-12-05": { prep: prepTasks, shortfalls },
+/** What GET /api/kitchen/plans/:id/result answers for each plan: prep to do and what's short. */
+export const planResults: Record<string, PlanResult> = {
+  "plan-12-05": { prep: prepTasks, shopping: shortfalls, uses: {} },
   "plan-12-06": {
     prep: [
-      { recipe: "Syrniki batter", item: "syrniki-batter", qty: 3600, batches: 2 },
-      { recipe: "Nalysnyky batter", item: "nalysnyky-batter", qty: 2000, batches: 2 },
-      { recipe: "Cheese filling", item: "cheese-filling", qty: 2400, batches: 2 },
+      { recipe: "syrniki-batter", recipeName: "Syrniki batter", item: "syrniki-batter", qty: 3600, batches: 2 },
+      { recipe: "nalysnyky-batter", recipeName: "Nalysnyky batter", item: "nalysnyky-batter", qty: 2000, batches: 2 },
+      { recipe: "cheese-filling", recipeName: "Cheese filling", item: "cheese-filling", qty: 2400, batches: 2 },
     ],
-    shortfalls: [{ item: "farmers-cheese", need: 5000, have: 0, buy: 5000, buyUnit: "lb", buyQty: 11 }],
+    shopping: [{ item: "farmers-cheese", name: "Farmer's cheese", need: 5000, have: 0, buy: 5000, buyUnit: "lb", buyQty: 11 }],
+    uses: {},
   },
   "plan-12-12": {
-    prep: [{ recipe: "Syrniki batter", item: "syrniki-batter", qty: 240, batches: 1 }],
-    shortfalls: [],
+    prep: [{ recipe: "syrniki-batter", recipeName: "Syrniki batter", item: "syrniki-batter", qty: 240, batches: 1 }],
+    shopping: [],
+    uses: {},
   },
 };
