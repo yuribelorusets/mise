@@ -6,7 +6,7 @@ import { loadRestaurant, RestaurantStore, type RestaurantConfig } from "./domain
 import { WebhookClient } from "./integrations/webhook.js";
 import { runTurn, type Session } from "./agent/agent.js";
 import { makeLLM, now } from "./config.js";
-import { Ledger, retainDays } from "./ops/ledger.js";
+import { Ledger, retainDays, scheduleCompaction } from "./ops/ledger.js";
 import { costUsd } from "./ops/pricing.js";
 import { RateLimiter, limitsFromEnv, type Limits } from "./ops/guardrails.js";
 import { adminRouter } from "./ops/admin.js";
@@ -32,7 +32,10 @@ export function createApp(opts: AppOptions = {}) {
   const config = opts.config ?? opts.store?.config ?? loadRestaurant();
   const ledger = opts.ledger ?? new Ledger(process.env.DATA_DIR, config.id);
   const days = retainDays();
-  if (ledger.persistent) ledger.compact(new Date(), days);
+  if (ledger.persistent) {
+    ledger.compact(new Date(), days);
+    scheduleCompaction(() => ledger.compact(new Date(), days));
+  }
   const store = opts.store ?? new RestaurantStore(config, { history: ledger, recorder: ledger });
   const llm = opts.llm ?? makeLLM(undefined, undefined, config);
   const webhook = opts.webhook ?? new WebhookClient();

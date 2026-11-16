@@ -38,6 +38,19 @@ export function retainDays(raw = process.env.MISE_RETAIN_DAYS): number {
   return 90;
 }
 
+/** Runs `task` every `ms` (default a day) while the server is up. The timer doesn't keep the process alive. */
+export function scheduleCompaction(task: () => void, ms = 86_400_000) {
+  const timer = setInterval(() => {
+    try {
+      task();
+    } catch (e) {
+      console.warn("Compaction failed:", e instanceof Error ? e.message : e);
+    }
+  }, ms);
+  timer.unref();
+  return timer;
+}
+
 /**
  * Append-only JSONL log of everything that happened: orders and every
  * conversation turn with its cost. Replayed on startup so a restart doesn't lose

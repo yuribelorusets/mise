@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mkdtempSync, appendFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadRestaurant, RestaurantStore } from "../src/domain/restaurant.js";
 import { runTool, toolSpecs } from "../src/agent/tools.js";
 import { WebhookClient } from "../src/integrations/webhook.js";
-import { Ledger } from "../src/ops/ledger.js";
+import { Ledger, scheduleCompaction } from "../src/ops/ledger.js";
 import { RateLimiter } from "../src/ops/guardrails.js";
 import { costUsd } from "../src/ops/pricing.js";
 import { summary, ordersCsv } from "../src/ops/admin.js";
@@ -174,6 +174,20 @@ describe("ledger", () => {
     const text = readFileSync(join(dir, "ruki.jsonl"), "utf8");
     expect(text).not.toMatch(/510-555-0100|Anya|s-1/);
     expect(new Ledger(dir, "ruki").orders[0]).toMatchObject({ id: "RK-OLD002", total: 12 });
+  });
+
+  it("compacts again on a timer that doesn't keep the process alive", () => {
+    vi.useFakeTimers();
+    try {
+      let runs = 0;
+      const timer = scheduleCompaction(() => { runs++; }, 1000);
+      vi.advanceTimersByTime(2500);
+      expect(runs).toBe(2);
+      expect(timer.hasRef()).toBe(false);
+      clearInterval(timer);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("refuses a retention that isn't a number of days, and keeps today's turns", () => {
