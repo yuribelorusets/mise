@@ -174,7 +174,9 @@ function readTool(name: string, input: Record<string, unknown>, ctx: KitchenTool
       toBase(item, 1, unit);
       const limit = 10_000;
       const max = maxBatch(c, totals(onHand(ctx.store.events())), item.id, unit, limit);
-      return ok({ item: item.id, name: item.name, unit, max: max >= limit ? null : max });
+      // null means stock doesn't limit it; hitting the search cap is a number, flagged.
+      if (max === Infinity) return ok({ item: item.id, name: item.name, unit, max: null });
+      return ok({ item: item.id, name: item.name, unit, max, ...(max >= limit ? { capped: true } : {}) });
     }
     case "cost": {
       const item = resolve(c, input.item);

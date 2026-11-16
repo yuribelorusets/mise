@@ -38,6 +38,11 @@ describe("kitchen read tools", () => {
     expect(runKitchenTool("max_batch", { item: "syrniki" }, ctx()).content).toMatchObject({ item: "syrniki", unit: "order", max: 0 });
   });
 
+  it("doesn't call a big stock unlimited", () => {
+    const r = runKitchenTool("max_batch", { item: "flour", unit: "g" }, ctx([ev("flour", 12000, "dry")]));
+    expect(r.content).toMatchObject({ item: "flour", max: 10000, capped: true });
+  });
+
   it("costs a batch from the latest prices", () => {
     const priced = ruki.items.map((i) => ev(i.id, 100000, "walk-in", { id: `r-${i.id}`, kind: "receive", unitCost: 0.01 }));
     const r = runKitchenTool("cost", { item: "syrniki", qty: 10, unit: "order" }, ctx(priced)).content as { cost: number; perUnit: number; missing: string[] };
