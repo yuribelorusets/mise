@@ -6,7 +6,7 @@ import { loadScenarios, runScenario } from "../src/evals/run.js";
 describe("eval suite (mock)", async () => {
   process.env.MISE_TODAY = "2026-12-04";
   const scenarios = await loadScenarios();
-  it("has scenarios in all four languages", () => {
+  it("loads the scenario suite", () => {
     expect(scenarios.length).toBeGreaterThanOrEqual(12);
   });
   for (const s of scenarios)

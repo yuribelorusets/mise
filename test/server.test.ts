@@ -39,19 +39,21 @@ describe("http", () => {
   });
   it("serves branding for the chat page", async () => {
     const body = await (await fetch(`${base}/api/config`)).json();
-    expect(body).toMatchObject({ id: "fennel-ash", mode: "restaurant", name: "Fennel & Ash" });
+    expect(body).toMatchObject({ id: "ruki", mode: "popup", name: "Ruki" });
     expect(body.examples.length).toBeGreaterThan(0);
   });
   it("protects the owner dashboard and reports what happened", async () => {
     expect((await fetch(`${base}/admin/api/summary`)).status).toBe(401);
     expect((await fetch(`${base}/admin/api/summary`, { headers: { authorization: "Bearer nope" } })).status).toBe(401);
-    await chat(base, "owner-test", "I'd like to order 2 olive oil cake for pickup. Name is Sam, 510-555-0105.");
+    await chat(base, "owner-test", "Can I preorder 2 syrniki?");
+    await chat(base, "owner-test", "10:30");
+    await chat(base, "owner-test", "Sam, 510-555-0105");
     const sum = await (await fetch(`${base}/admin/api/summary`, { headers: { authorization: "Bearer owner-secret" } })).json();
     expect(sum.kpis.orders).toBeGreaterThanOrEqual(1);
     expect(sum.conversations.some((c: { id: string; ordered: boolean }) => c.id === "owner-test" && c.ordered)).toBe(true);
     const csv = await fetch(`${base}/admin/api/orders.csv?token=owner-secret`);
     expect(csv.headers.get("content-type")).toMatch(/csv/);
-    expect(await csv.text()).toMatch(/Olive Oil Cake/);
+    expect(await csv.text()).toMatch(/Syrniki/);
   });
 });
 

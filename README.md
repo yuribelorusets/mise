@@ -2,10 +2,9 @@
 
 **A multilingual AI ordering agent for small food businesses. It answers the website chat, takes preorders and pickup orders, books tables, handles allergy questions safely, and never sells more than the kitchen made. The owner gets a live dashboard with a prep list, a pickup sheet and what every conversation cost. It ships with its own evaluation suite, so you can prove it works before it talks to a guest.**
 
-It runs two kinds of business from one config file:
+It runs a pop-up from one config file:
 
 - **[Ruki](data/restaurants/ruki.json)**, a real Ukrainian-Russian brunch pop-up that used to take preorders by hand over Instagram DMs. Pop-up mode: small batches that sell out, pickup windows with limited spots, a preorder cutoff, Russian-speaking regulars.
-- **[Fennel & Ash](data/restaurants/fennel-ash.json)**, a demo restaurant. Restaurant mode: table reservations and pickup orders.
 
 *Mise en place*: everything in its place before service starts. I spent years cooking in restaurants before becoming a software engineer, and I've watched hosts juggle a ringing phone, a full book and a guest asking about peanuts at the same time. Mise is the host I wish those restaurants had, built the way I'd want to ship an AI agent to a real customer: grounded in tools, safe by default, and measured.
 

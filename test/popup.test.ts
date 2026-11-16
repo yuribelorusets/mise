@@ -121,7 +121,7 @@ describe("owner dashboard", () => {
 });
 
 it("ships every restaurant config with valid menus", () => {
-  for (const id of ["fennel-ash", "ruki"]) {
+  for (const id of ["ruki"]) {
     const c = loadRestaurant(id);
     expect(new Set(c.menu.map((m) => m.id)).size).toBe(c.menu.length);
     expect(JSON.parse(readFileSync(`data/restaurants/${id}.json`, "utf8")).id).toBe(id);

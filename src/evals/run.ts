@@ -31,7 +31,7 @@ export async function loadScenarios(dir = "evals/scenarios"): Promise<Scenario[]
 }
 
 export async function runScenario(s: Scenario, variant: { label: string; llm: string; model?: string }, trial = 1, withJudge = false): Promise<ScenarioResult> {
-  const config = restaurant(s.restaurant ?? "fennel-ash");
+  const config = restaurant(s.restaurant ?? "ruki");
   const llm = makeLLM(variant.llm, variant.model, config);
   const store = new RestaurantStore(config);
   const webhook = new WebhookClient({ url: "", fallbackFile: null });
@@ -82,7 +82,7 @@ async function main() {
     },
   });
   let scenarios = await loadScenarios();
-  if (values.restaurant) scenarios = scenarios.filter((s) => (s.restaurant ?? "fennel-ash") === values.restaurant);
+  if (values.restaurant) scenarios = scenarios.filter((s) => (s.restaurant ?? "ruki") === values.restaurant);
   if (values.tag) scenarios = scenarios.filter((s) => s.tags?.includes(values.tag!));
   const llmKind = values.llm ?? (process.env.ANTHROPIC_API_KEY ? "anthropic" : "mock");
   const variants = values.compare

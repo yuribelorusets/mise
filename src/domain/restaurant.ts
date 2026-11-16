@@ -70,7 +70,7 @@ const DATA_DIR = fileURLToPath(new URL("../../data/restaurants/", import.meta.ur
 
 export const listRestaurants = () => readdirSync(DATA_DIR).filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, ""));
 
-export function loadRestaurant(id = process.env.MISE_RESTAURANT || "fennel-ash"): RestaurantConfig {
+export function loadRestaurant(id = process.env.MISE_RESTAURANT || "ruki"): RestaurantConfig {
   if (!/^[a-z0-9-]+$/.test(id)) throw new Error(`Invalid restaurant id "${id}"`);
   return JSON.parse(readFileSync(`${DATA_DIR}${id}.json`, "utf8")) as RestaurantConfig;
 }

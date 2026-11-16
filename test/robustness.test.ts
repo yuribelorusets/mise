@@ -14,7 +14,6 @@ import { MockLLM } from "../src/llm/mock.js";
 import type { LLM, LLMRequest, LLMResponse } from "../src/llm/types.js";
 
 const ruki = loadRestaurant("ruki");
-const fennel = loadRestaurant("fennel-ash");
 const NOW = new Date("2026-12-04T18:00:00-08:00");
 const PHONE = "510-555-0100";
 const quiet = () => new WebhookClient({ url: "", fallbackFile: null });
@@ -65,19 +64,6 @@ describe("time zones", () => {
 
 // ---------------------------------------------------------------- tool input validation (OWASP LLM05/LLM06)
 describe("tool inputs a confused or manipulated model might send", () => {
-  it.each([
-    ["a non-number party size", { partySize: "lots" }],
-    ["a fractional party size", { partySize: 2.5 }],
-    ["an impossible date", { date: "2026-02-30" }],
-    ["a date in the past", { date: "2026-11-01" }],
-    ["a date a year out", { date: "2027-12-04" }],
-  ])("refuses to book with %s", async (_, patch) => {
-    const store = new RestaurantStore(fennel);
-    const out = await runTool("create_reservation", { date: "2026-12-05", time: "18:00", partySize: 2, name: "Jo", phone: PHONE, ...patch }, { ...ctx(store), sessionId: "s" });
-    expect(out.isError).toBe(true);
-    expect(store.reservations).toHaveLength(0);
-  });
-
   it.each([
     ["no digits in the phone", { phone: "call me maybe" }],
     ["a 300-character name", { name: "x".repeat(300) }],
@@ -292,22 +278,6 @@ describe("store invariants under random order sequences", () => {
         try { store.placeOrder({ name: "G", phone: `510555${String(i).padStart(4, "0")}`, items: lines, pickupTime: windows[i % windows.length] }, NOW); } catch { /* fine */ }
       });
       return ruki.menu.every((m) => store.orders.flatMap((o) => o.items).filter((l) => l.id === m.id).reduce((s, l) => s + l.quantity, 0) <= (m.quantity ?? Infinity));
-    }), { numRuns: 300 });
-  });
-
-  it("never books more tables than a slot has", () => {
-    fc.assert(fc.property(fc.array(fc.record({
-      date: fc.constantFrom("2026-12-04", "2026-12-05", "2026-12-07"),
-      time: fc.constantFrom("17:00", "18:00", "19:00", "19:30", "21:45"),
-      party: fc.integer({ min: 0, max: 12 }),
-    }), { maxLength: 80 }), (attempts) => {
-      const store = new RestaurantStore(fennel);
-      attempts.forEach((a, i) => { try { store.createReservation({ ...a, partySize: a.party, name: "G", phone: `510555${String(i).padStart(4, "0")}` }, NOW); } catch { /* fine */ } });
-      const per = new Map<string, number>();
-      for (const r of store.reservations) per.set(`${r.date} ${r.time}`, (per.get(`${r.date} ${r.time}`) ?? 0) + 1);
-      const seeded = (d: string, t: string) => fennel.seedReservations.find((s) => s.date === d && s.time === t)?.tables ?? 0;
-      return [...per].every(([k, n]) => n + seeded(...(k.split(" ") as [string, string])) <= fennel.seating.tablesPerSlot)
-        && store.reservations.every((r) => r.partySize >= 1 && r.partySize <= fennel.seating.maxPartySize);
     }), { numRuns: 300 });
   });
 
