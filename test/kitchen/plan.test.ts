@@ -33,8 +33,18 @@ describe("explode", () => {
     fc.assert(fc.property(fc.integer({ min: 1, max: 500 }), (q) => {
       const one = explode(c, plan(q), {});
       const two = explode(c, plan(2 * q), {});
-      return two.shopping.every((s, i) => Math.abs(s.need - 2 * one.shopping[i].need) < 1e-6 && s.buy >= 0);
+      const oneNeed = new Map(one.shopping.map((s) => [s.item, s.need]));
+      return two.shopping.length === one.shopping.length
+        && two.shopping.every((s) => Math.abs(s.need - 2 * (oneNeed.get(s.item) ?? Number.NaN)) < 1e-6 && s.buy >= 0);
     }));
+  });
+  it("treats a negative amount on hand as nothing", () => {
+    const r = explode(c, plan(40), { cheese: -500, eggs: -1 });
+    expect(r.shopping).toEqual([
+      { item: "cheese", need: 3000, have: 0, buy: 3000 },
+      { item: "eggs", need: 12, have: 0, buy: 12, buyUnit: "case", buyQty: 1 },
+    ]);
+    expect(r.uses).toEqual({});
   });
   it("needs nothing when everything is on hand", () => {
     const r = explode(c, plan(10), { syrniki: 30 });
