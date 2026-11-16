@@ -71,7 +71,7 @@ const placeOrder = (popup: boolean): ToolSpec => ({
         type: "array",
         items: {
           type: "object",
-          properties: { item: { type: "string" }, quantity: { type: "integer", minimum: 1 } },
+          properties: { item: { type: "string" }, quantity: { type: "integer", minimum: 1, description: "Number of orders, not pieces. See piecesPerOrder in search_menu." } },
           required: ["item", "quantity"],
         },
       },
