@@ -1,4 +1,5 @@
-import { prepTasks, shortfalls, type PrepTask, type ShoppingLine } from "./ruki";
+import type { PrepTask, ShoppingLine } from "../api/types";
+import { prepTasks, shortfalls } from "./ruki";
 import type { ProductionPlan } from "./types";
 
 // Saturday's preorder lines add up to the six preorders on Today.

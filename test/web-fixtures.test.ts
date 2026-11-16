@@ -11,7 +11,7 @@ const rukiKitchen: Catalog = JSON.parse(readFileSync("data/kitchens/ruki.json", 
 
 describe("web fixtures against the kitchen core", () => {
   // Backlog: "The Today fixtures don't match what the kitchen core returns."
-  it.fails("names prep tasks the way explode does, by recipe id", () => {
+  it("names prep tasks the way explode does, by recipe id", () => {
     const real = explode(rukiKitchen as Catalog, [{ item: "syrniki", qty: 40, unit: "order", source: "preorder" }], {}).prep;
     const ids = new Set(rukiKitchen.recipes.map((r) => r.id));
     expect(real.every((t) => ids.has(t.recipe))).toBe(true); // what the API will send

@@ -9,7 +9,7 @@ import { makeQueryClient } from "./query-client";
 import { keys } from "./keys";
 import { useConfirmProposal, useOwner } from "./hooks";
 
-const todayView = { date: "2026-12-05", plan: null, prep: [], shopping: [], preorders: [] };
+import { todayView } from "../fixtures/ruki";
 const confirmResult = { proposal: { id: "p-1", status: "confirmed", lines: [], stale: false, problems: [] }, events: [] };
 const publicConfig = { name: "Syrniki Pop-up", menu: [], privacyNotice: "We keep it.", popup: { pickupWindows: [] } };
 

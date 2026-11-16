@@ -3,7 +3,8 @@
   top: 0;
   z-index: 5;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   margin: 0 calc(var(--space-4) * -1) var(--space-6);
   padding: var(--space-2) var(--space-4);
   background: var(--paper);
@@ -70,6 +71,21 @@
 .count__last {
   font-size: var(--text-sm);
   color: var(--ink-muted);
+}
+.count__problem,
+.count__error {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--accent);
+}
+.count__saved {
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+.count__save-btn:disabled {
+  background: var(--paper-shade);
+  color: var(--ink-muted);
+  cursor: not-allowed;
 }
 .count__save {
   padding-top: var(--space-2);

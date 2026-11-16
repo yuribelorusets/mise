@@ -1,29 +1,56 @@
+import { useCatalog, useToday } from "../api/hooks";
 import { PrepList } from "../components/PrepList";
-import { showQty } from "../lib/format";
-import { itemInfo, pickupDate, prepTasks, preorders, shortfalls, targets } from "../fixtures/ruki";
+import { showLongDay, showQty } from "../lib/format";
+import type { BaseUnit } from "../api/types";
 import "./Today.css";
 
-const windows = [...new Set(preorders.map((p) => p.window))];
-
 export default function Today() {
+  const today = useToday();
+  const catalog = useCatalog();
+
+  const failed = today.error ?? catalog.error;
+  if (failed) {
+    return (
+      <>
+        <header className="page-head"><p className="page-head__kicker">Ruki pop-up</p><h1>Today</h1></header>
+        <p className="page-head__sub" role="alert">{failed.message}</p>
+      </>
+    );
+  }
+  if (!today.data || !catalog.data) {
+    return (
+      <>
+        <header className="page-head"><p className="page-head__kicker">Ruki pop-up</p><h1>Today</h1></header>
+        <p className="page-head__sub" role="status">Loading…</p>
+      </>
+    );
+  }
+
+  const { plan, prep, shopping, preorders, date } = today.data;
+  const items = new Map(catalog.data.items.map((i) => [i.id, i]));
+  const baseUnits = Object.fromEntries(catalog.data.items.map((i) => [i.id, i.baseUnit])) as Record<string, BaseUnit>;
+  const windows = [...new Set(preorders.map((p) => p.pickupTime))];
+
   return (
     <>
       <header className="page-head">
         <p className="page-head__kicker">Ruki pop-up</p>
         <h1>Today</h1>
         <p className="page-head__sub tnum">
-          Next production, {pickupDate}: {targets.map((t) => `${t.qty} ${t.name.toLowerCase()}`).join(", ")}
+          {plan
+            ? `Next production, ${showLongDay(date)}: ${plan.lines.map((l) => `${l.qty} ${(items.get(l.item)?.name ?? l.item).toLowerCase()}`).join(", ")}`
+            : `No plan yet. Add one under Plan.`}
         </p>
       </header>
 
       <div className="sheet-section">
-        <PrepList tasks={prepTasks} info={itemInfo} />
+        <PrepList key={plan?.id ?? "none"} tasks={prep} baseUnits={baseUnits} storageKey={plan ? `mise.prep.${plan.id}` : undefined} />
       </div>
 
       <section className="sheet-section short" aria-labelledby="short-h">
         <div className="sheet-head">
           <h2 id="short-h">Short</h2>
-          <p className="sheet-head__note tnum">{shortfalls.length} items to buy</p>
+          <p className="sheet-head__note tnum">{shopping.length} items to buy</p>
         </div>
         <table className="short__table">
           <thead>
@@ -35,10 +62,10 @@ export default function Today() {
             </tr>
           </thead>
           <tbody>
-            {shortfalls.map((s) => {
-              const meta = itemInfo[s.item] ?? { name: s.item, base: "each" as const };
+            {shopping.map((s) => {
+              const base = baseUnits[s.item] ?? "each";
               const cell = (n: number) => {
-                const q = showQty(n, meta.base);
+                const q = showQty(n, base);
                 return (
                   <>
                     <span className="tnum">{q.value}</span> <span className="short__unit">{q.unit}</span>
@@ -48,7 +75,7 @@ export default function Today() {
               return (
                 <tr key={s.item}>
                   <th scope="row" className="short__item">
-                    {meta.name}
+                    {s.name}
                     {s.buyQty !== undefined && (
                       <span className="short__buy tnum">
                         order {s.buyQty} {s.buyUnit}
@@ -75,12 +102,12 @@ export default function Today() {
             <h3 className="orders__time tnum">{w}</h3>
             <ul className="orders__list">
               {preorders
-                .filter((p) => p.window === w)
-                .map((p) => (
-                  <li key={p.id} className="orders__row" aria-label={`Preorder from ${p.name}`}>
-                    <span className="orders__name">{p.name}</span>
+                .filter((p) => p.pickupTime === w)
+                .map((p, i) => (
+                  <li key={i} className="orders__row" aria-label={`Preorder from ${p.firstName || "a guest"}`}>
+                    <span className="orders__name">{p.firstName || "A guest"}</span>
                     <span className="orders__items tnum">
-                      {p.items.map((i) => `${i.qty} ${i.item.toLowerCase()}`).join(", ")}
+                      {p.items.map((l) => `${l.quantity} ${l.name.toLowerCase()}`).join(", ")}
                     </span>
                   </li>
                 ))}

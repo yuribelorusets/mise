@@ -1,108 +1,92 @@
-// Mockup data for Saturday's pop-up. Shapes follow the kitchen core's results;
-// amounts are in base units (g, ml, each).
+// What the kitchen API answers for Saturday's pop-up, as test data for the fake API. Shapes are the
+// API's (TodayView, Catalog, StockView); amounts are in base units (g, ml, each).
+import type { BaseUnit, Catalog, GuestPreorder, Item, PlanResult, StockView, TodayView } from "../api/types";
 
-export type BaseUnit = "g" | "ml" | "each";
+const item = (id: string, name: string, baseUnit: BaseUnit, units: Item["units"] = {}): Item => ({ id, name, aliases: [], baseUnit, units, allergens: [] });
 
-export interface PrepTask {
-  recipe: string;
-  item: string;
-  qty: number;
-  batches: number;
-}
-
-export interface ShoppingLine {
-  item: string;
-  need: number;
-  have: number;
-  buy: number;
-  buyUnit?: string;
-  buyQty?: number;
-}
-
-export interface Preorder {
-  id: string;
-  name: string;
-  window: string;
-  items: { item: string; qty: number }[];
-}
-
-export interface CountItem {
-  id: string;
-  name: string;
-  unit: string;
-  step: number;
-  last: number;
-  shelf: string;
-}
-
-export const pickupDate = "Saturday 5 December";
-
-export const targets = [
-  { name: "Syrniki", qty: 40 },
-  { name: "Nalysnyky", qty: 30 },
+export const items: Item[] = [
+  item("syrniki", "Syrniki", "each", { order: 3 }),
+  item("nalysnyky", "Nalysnyky", "each", { order: 2 }),
+  item("syrniki-batter", "Syrniki batter", "g"),
+  item("nalysnyky-batter", "Nalysnyky batter", "ml"),
+  item("cheese-filling", "Cheese filling", "g"),
+  item("cherry-compote", "Sour cherry compote", "ml"),
+  item("herb-schmear", "Dill schmear", "g"),
+  item("pickled-beets", "Pickled beets", "g"),
+  item("farmers-cheese", "Farmer's cheese", "g", { lb: 453.59237 }),
+  item("eggs", "Eggs", "each", { flat: 30, dozen: 12 }),
+  item("sour-cream", "Sour cream", "g", { tub: 907 }),
+  item("flour", "Flour", "g"),
+  item("sugar", "Sugar", "g"),
 ];
 
-// Display names and base units for the item ids used below.
-export const itemInfo: Record<string, { name: string; base: BaseUnit }> = {
-  "syrniki-batter": { name: "Syrniki batter", base: "g" },
-  "nalysnyky-batter": { name: "Nalysnyky batter", base: "ml" },
-  "cheese-filling": { name: "Cheese filling", base: "g" },
-  "cherry-compote": { name: "Sour cherry compote", base: "ml" },
-  "herb-schmear": { name: "Dill schmear", base: "g" },
-  "pickled-beets": { name: "Pickled beets", base: "g" },
-  "farmers-cheese": { name: "Farmer's cheese", base: "g" },
-  eggs: { name: "Eggs", base: "each" },
-  "sour-cream": { name: "Sour cream", base: "g" },
+export const catalog: Catalog = {
+  items,
+  locations: [
+    { id: "walk-in", name: "Walk-in", shelfOrder: ["sour-cream", "farmers-cheese", "eggs"] },
+    { id: "dry", name: "Dry store", shelfOrder: ["flour", "sugar"] },
+  ],
+  recipes: [],
+  plans: [],
 };
 
-export const prepTasks: PrepTask[] = [
-  { recipe: "Syrniki batter", item: "syrniki-batter", qty: 4800, batches: 2 },
-  { recipe: "Nalysnyky batter", item: "nalysnyky-batter", qty: 3000, batches: 3 },
-  { recipe: "Cheese filling", item: "cheese-filling", qty: 2400, batches: 2 },
-  { recipe: "Sour cherry compote", item: "cherry-compote", qty: 1500, batches: 1 },
-  { recipe: "Dill schmear", item: "herb-schmear", qty: 800, batches: 1 },
-  { recipe: "Pickled beets", item: "pickled-beets", qty: 1200, batches: 1 },
+export const pickupDate = "2026-12-05";
+
+export const prepTasks: TodayView["prep"] = [
+  { recipe: "syrniki-batter", recipeName: "Syrniki batter", item: "syrniki-batter", qty: 4800, batches: 2 },
+  { recipe: "nalysnyky-batter", recipeName: "Nalysnyky batter", item: "nalysnyky-batter", qty: 3000, batches: 3 },
+  { recipe: "cheese-filling", recipeName: "Cheese filling", item: "cheese-filling", qty: 2400, batches: 2 },
+  { recipe: "cherry-compote", recipeName: "Sour cherry compote", item: "cherry-compote", qty: 1500, batches: 1 },
+  { recipe: "dill-schmear", recipeName: "Dill schmear", item: "herb-schmear", qty: 800, batches: 1 },
+  { recipe: "pickled-beets", recipeName: "Pickled beets", item: "pickled-beets", qty: 1200, batches: 1 },
 ];
 
-export const shortfalls: ShoppingLine[] = [
-  { item: "farmers-cheese", need: 6000, have: 2500, buy: 3500, buyUnit: "lb", buyQty: 8 },
-  { item: "eggs", need: 96, have: 60, buy: 36, buyUnit: "flat", buyQty: 2 },
-  { item: "sour-cream", need: 1800, have: 400, buy: 1400, buyUnit: "tub", buyQty: 2 },
+export const shortfalls: TodayView["shopping"] = [
+  { item: "farmers-cheese", name: "Farmer's cheese", need: 6000, have: 2500, buy: 3500, buyUnit: "lb", buyQty: 8 },
+  { item: "eggs", name: "Eggs", need: 96, have: 60, buy: 36, buyUnit: "flat", buyQty: 2 },
+  { item: "sour-cream", name: "Sour cream", need: 1800, have: 400, buy: 1400, buyUnit: "tub", buyQty: 2 },
 ];
 
-export const preorders: Preorder[] = [
-  { id: "p1", name: "Anya", window: "11:00", items: [{ item: "Syrniki", qty: 4 }] },
-  { id: "p2", name: "Marcus", window: "11:00", items: [{ item: "Syrniki", qty: 2 }, { item: "Nalysnyky", qty: 2 }] },
-  { id: "p3", name: "Dasha", window: "11:30", items: [{ item: "Nalysnyky", qty: 3 }] },
-  { id: "p4", name: "Joel", window: "12:00", items: [{ item: "Syrniki", qty: 6 }] },
-  { id: "p5", name: "Ines", window: "12:00", items: [{ item: "Syrniki", qty: 2 }, { item: "Nalysnyky", qty: 4 }] },
-  { id: "p6", name: "Tomas", window: "12:30", items: [{ item: "Nalysnyky", qty: 5 }] },
+export const preorders: GuestPreorder[] = [
+  { firstName: "Anya", pickupTime: "11:00", items: [{ name: "Syrniki", quantity: 4 }] },
+  { firstName: "Marcus", pickupTime: "11:00", items: [{ name: "Syrniki", quantity: 2 }, { name: "Nalysnyky", quantity: 2 }] },
+  { firstName: "Dasha", pickupTime: "11:30", items: [{ name: "Nalysnyky", quantity: 3 }] },
+  { firstName: "Joel", pickupTime: "12:00", items: [{ name: "Syrniki", quantity: 6 }] },
+  { firstName: "Ines", pickupTime: "12:00", items: [{ name: "Syrniki", quantity: 2 }, { name: "Nalysnyky", quantity: 4 }] },
+  { firstName: "Tomas", pickupTime: "12:30", items: [{ name: "Nalysnyky", quantity: 5 }] },
 ];
 
-export const locations = ["Walk-in", "Dry store", "Freezer"] as const;
-export type Location = (typeof locations)[number];
+export const todayView: TodayView = {
+  date: pickupDate,
+  plan: {
+    id: "plan-2026-12-05",
+    date: pickupDate,
+    lines: [
+      { item: "syrniki", qty: 40, unit: "order", source: "manual" },
+      { item: "nalysnyky", qty: 30, unit: "order", source: "manual" },
+    ],
+  },
+  prep: prepTasks,
+  shopping: shortfalls,
+  preorders,
+};
 
-export const countItems: Record<Location, CountItem[]> = {
-  "Walk-in": [
-    { id: "sour-cream", name: "Sour cream", unit: "tub", step: 1, last: 1, shelf: "Top shelf" },
-    { id: "heavy-cream", name: "Heavy cream", unit: "qt", step: 1, last: 3, shelf: "Top shelf" },
-    { id: "farmers-cheese", name: "Farmer's cheese", unit: "lb", step: 1, last: 5, shelf: "Top shelf" },
-    { id: "butter", name: "Butter", unit: "lb", step: 1, last: 10, shelf: "Middle shelf" },
-    { id: "milk", name: "Whole milk", unit: "gal", step: 1, last: 2, shelf: "Middle shelf" },
-    { id: "eggs", name: "Eggs", unit: "each", step: 6, last: 60, shelf: "Middle shelf" },
-    { id: "dill", name: "Dill", unit: "bunch", step: 1, last: 4, shelf: "Bottom shelf" },
-    { id: "parsley", name: "Parsley", unit: "bunch", step: 1, last: 2, shelf: "Bottom shelf" },
-    { id: "pickled-beets", name: "Pickled beets", unit: "qt", step: 1, last: 1, shelf: "Bottom shelf" },
-    { id: "cherries", name: "Sour cherries", unit: "qt", step: 1, last: 2, shelf: "Bottom shelf" },
-  ],
-  "Dry store": [
-    { id: "flour", name: "Flour", unit: "lb", step: 5, last: 35, shelf: "Shelf 1" },
-    { id: "sugar", name: "Sugar", unit: "lb", step: 5, last: 20, shelf: "Shelf 1" },
-    { id: "semolina", name: "Semolina", unit: "lb", step: 1, last: 4, shelf: "Shelf 2" },
-    { id: "oil", name: "Sunflower oil", unit: "L", step: 1, last: 6, shelf: "Shelf 2" },
-  ],
-  Freezer: [
-    { id: "cherries-frozen", name: "Sour cherries, frozen", unit: "lb", step: 1, last: 8, shelf: "Drawer 1" },
-    { id: "crepes", name: "Nalysnyky, spare", unit: "each", step: 6, last: 24, shelf: "Drawer 2" },
-  ],
+export const planResult: PlanResult = { prep: prepTasks, shopping: shortfalls, uses: {} };
+
+export const stockView: StockView = {
+  basedOn: 12,
+  onHand: {
+    "sour-cream": { "walk-in": 907 },
+    "farmers-cheese": { "walk-in": 2268 },
+    eggs: { "walk-in": 60 },
+    flour: { dry: 15876 },
+    sugar: { dry: 9072 },
+  },
+  lastCount: {
+    "sour-cream": { "walk-in": { qty: 907, at: "2026-12-03T09:00:00.000Z" } },
+    "farmers-cheese": { "walk-in": { qty: 2268, at: "2026-12-03T09:00:00.000Z" } },
+    eggs: { "walk-in": { qty: 60, at: "2026-12-03T09:00:00.000Z" } },
+    flour: { dry: { qty: 15876, at: "2026-12-03T09:10:00.000Z" } },
+  },
+  lastReceived: {},
 };

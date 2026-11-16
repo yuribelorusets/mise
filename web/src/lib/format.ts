@@ -30,6 +30,12 @@ export function showDay(iso: string): string {
   return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
+/** "Saturday 5 December" for an ISO date. */
+export function showLongDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return `${d.toLocaleDateString("en-US", { weekday: "long" })} ${d.getDate()} ${d.toLocaleDateString("en-US", { month: "long" })}`;
+}
+
 /** "Tue 1 Dec, 08:30" for an ISO time. */
 export function showWhen(iso: string): string {
   const d = new Date(iso);

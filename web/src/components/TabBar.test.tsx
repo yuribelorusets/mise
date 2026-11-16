@@ -1,13 +1,18 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppRoutes } from "../App";
+import { catalog, todayView } from "../fixtures/ruki";
 import { fakeApi } from "../test/fake-api";
 import { renderWith } from "../test/render";
 
 afterEach(() => vi.unstubAllGlobals());
 
 test("the tab bar reaches every owner screen", async () => {
-  vi.stubGlobal("fetch", fakeApi({ "GET /api/owner/me": () => ({ owner: true }) }));
+  vi.stubGlobal("fetch", fakeApi({
+    "GET /api/owner/me": () => ({ owner: true }),
+    "GET /api/kitchen/today": () => todayView,
+    "GET /api/kitchen/catalog": () => catalog,
+  }));
   renderWith(<AppRoutes />);
   for (const name of ["Today", "Count", "Stock", "Recipes", "Plan"]) expect(await screen.findByRole("link", { name })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("link", { name: "Count" }));
