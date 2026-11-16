@@ -153,7 +153,9 @@ describe("kitchen API", () => {
   it("answers the assistant route and checks its input", async () => {
     const res = await post("/assistant", { sessionId: "owner-1", message: "received 2 cases of eggs" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ reply: expect.any(String), proposals: [] });
+    const body = await res.json();
+    expect(body).toMatchObject({ reply: expect.any(String), proposals: [{ status: "open", lines: [{ kind: "receive", item: "eggs" }] }] });
+    expect(book.get(body.proposals[0].id)?.status).toBe("open"); // proposed, not booked
     expect((await post("/assistant", { sessionId: "owner-1", message: "" })).status).toBe(400);
     expect((await post("/assistant", { sessionId: "owner-1", message: "x".repeat(2001) })).status).toBe(400);
   });
