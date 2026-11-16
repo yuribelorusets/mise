@@ -157,4 +157,9 @@ describe("kitchen API", () => {
     expect((await post("/assistant", { sessionId: "owner-1", message: "" })).status).toBe(400);
     expect((await post("/assistant", { sessionId: "owner-1", message: "x".repeat(2001) })).status).toBe(400);
   });
+
+  it("answers 404 for an unknown item on cost and max-batch, not 500", async () => {
+    expect((await kitchen("/cost?item=nope&qty=1&unit=each")).status).toBe(404);
+    expect((await kitchen("/max-batch?item=nope&unit=each")).status).toBe(404);
+  });
 });

@@ -85,6 +85,11 @@ export function kitchenRouter(deps: KitchenApiDeps) {
     return v as Kind;
   };
 
+  const known = (id: string) => {
+    if (!store.catalog().items.some((i) => i.id === id)) throw new NotFound(`There's no item called "${id}".`);
+    return id;
+  };
+
   router.get("/catalog", (_req, res) => void res.json(store.catalog()));
 
   const changeCatalog = (change: (c: Catalog) => Catalog, res: express.Response) => {
@@ -164,13 +169,13 @@ export function kitchenRouter(deps: KitchenApiDeps) {
   });
 
   router.get("/cost", (req, res) => {
-    const item = str(req.query.item, "item"), unit = str(req.query.unit, "unit");
+    const item = known(str(req.query.item, "item")), unit = str(req.query.unit, "unit");
     const qty = Number(str(req.query.qty, "qty"));
     if (!Number.isFinite(qty) || qty < 0) throw new BadRequest("qty must be a number.");
     res.json(batchCost(store.catalog(), store.events(), item, qty, unit));
   });
   router.get("/max-batch", (req, res) => {
-    const n = maxBatch(store.catalog(), available(), str(req.query.item, "item"), str(req.query.unit, "unit"));
+    const n = maxBatch(store.catalog(), available(), known(str(req.query.item, "item")), str(req.query.unit, "unit"));
     res.json({ max: Number.isFinite(n) ? n : null });
   });
 
