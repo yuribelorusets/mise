@@ -13,6 +13,8 @@ export class FileStore implements KitchenStore {
   private log: StockEvent[] = [];
   private catalogFile: string;
   private eventsFile: string;
+  /** True when the events file ends mid-line, so the next append must start a new one. */
+  private torn = false;
 
   constructor(dir: string, kitchen: string, seed: Catalog) {
     mkdirSync(dir, { recursive: true });
@@ -20,11 +22,14 @@ export class FileStore implements KitchenStore {
     this.eventsFile = join(dir, `${kitchen}.stock.jsonl`);
     this.cat = existsSync(this.catalogFile) ? this.readCatalog() : structuredClone(seed);
     check(this.cat, existsSync(this.catalogFile) ? this.catalogFile : "the seed catalog");
-    if (existsSync(this.eventsFile))
-      for (const line of readFileSync(this.eventsFile, "utf8").split("\n")) {
+    if (existsSync(this.eventsFile)) {
+      const text = readFileSync(this.eventsFile, "utf8");
+      this.torn = text.length > 0 && !text.endsWith("\n");
+      for (const line of text.split("\n")) {
         if (!line.trim()) continue;
         try { this.log.push(JSON.parse(line)); } catch { console.warn(`[mise] skipped a corrupt line in ${this.eventsFile}`); }
       }
+    }
   }
 
   private readCatalog(): Catalog {
@@ -45,7 +50,8 @@ export class FileStore implements KitchenStore {
   events(): readonly StockEvent[] { return this.log; }
 
   append(events: StockEvent[]) {
-    appendFileSync(this.eventsFile, events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+    appendFileSync(this.eventsFile, (this.torn ? "\n" : "") + events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+    this.torn = false;
     this.log.push(...events);
   }
 }

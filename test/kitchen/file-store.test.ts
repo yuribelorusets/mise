@@ -22,6 +22,13 @@ describe("FileStore", () => {
     appendFileSync(join(dir, "test.stock.jsonl"), "{not json\n");
     expect(new FileStore(dir, "test", seed).events()).toEqual([]);
   });
+  it("doesn't lose the next event after a torn last line", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kitchen-"));
+    const e = (id: string) => ({ id, at: "2026-12-01T10:00:00Z", kind: "receive" as const, item: "eggs", location: "walk-in", qty: 1, source: "manual" as const });
+    appendFileSync(join(dir, "test.stock.jsonl"), JSON.stringify(e("a")) + "\n" + '{"id":"b","at":');
+    new FileStore(dir, "test", seed).append([e("c")]);
+    expect(new FileStore(dir, "test", seed).events().map((x) => x.id)).toEqual(["a", "c"]);
+  });
   it("names the file when the catalog can't be parsed", () => {
     const dir = mkdtempSync(join(tmpdir(), "kitchen-"));
     writeFileSync(join(dir, "test.catalog.json"), "{oops");
