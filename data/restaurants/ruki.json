@@ -1,0 +1,91 @@
+{
+  "id": "ruki",
+  "draft": true,
+  "_todo": "DRAFT: confirm menu, prices, quantities, event date, location, pickup windows and cutoff before going live. Remove \"draft\" when done.",
+  "mode": "popup",
+  "name": "Ruki",
+  "codePrefix": "RK",
+  "city": "Oakland, CA",
+  "phone": "",
+  "timezone": "America/Los_Angeles",
+  "instagram": "@eat.ruki",
+  "brand": {
+    "tagline": "preorders for the Ruki pop-up",
+    "accent": "#b45309",
+    "examples": [
+      "Can I preorder 2 syrniki for pickup at 11?",
+      "Are the syrniki gluten free?",
+      "What's on the menu?",
+      "Здравствуйте! Хочу заказать сырники на 12:00"
+    ]
+  },
+  "popup": {
+    "eventDate": "2026-12-05",
+    "location": "TBD: set the pop-up address before launch",
+    "pickupWindows": ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30"],
+    "ordersPerWindow": 10,
+    "orderCutoff": "2026-12-04T20:00:00-08:00",
+    "paymentLink": ""
+  },
+  "hours": { "open": "10:00", "close": "13:00", "closedDays": [] },
+  "seating": { "slotMinutes": 30, "tablesPerSlot": 0, "maxPartySize": 0 },
+  "pickup": { "leadMinutes": 0 },
+  "menu": [
+    {
+      "id": "syrniki",
+      "name": "Babushka's Syrniki",
+      "aliases": ["syrniki", "сырники", "сирники", "cheese pancakes"],
+      "category": "sweet",
+      "price": 12,
+      "quantity": 40,
+      "allergens": ["dairy", "egg", "gluten"],
+      "dietary": ["vegetarian"],
+      "description": "Farmer's cheese pancakes, sour cream, seasonal jam. Three per order."
+    },
+    {
+      "id": "nalysnyky",
+      "name": "Nalysnyky",
+      "aliases": ["nalysnyky", "налисники", "blintzes", "crepes"],
+      "category": "sweet",
+      "price": 12,
+      "quantity": 30,
+      "allergens": ["dairy", "egg", "gluten"],
+      "dietary": ["vegetarian"],
+      "description": "Ukrainian crepes filled with sweet farmer's cheese. Two per order."
+    },
+    {
+      "id": "bagel-classic",
+      "name": "Bagel + Classic Schmear",
+      "aliases": ["bagel", "classic schmear", "plain schmear", "бейгл"],
+      "category": "bagels",
+      "price": 7,
+      "quantity": 40,
+      "allergens": ["gluten", "dairy"],
+      "dietary": ["vegetarian"],
+      "description": "House bagel with whipped cream cheese schmear."
+    },
+    {
+      "id": "bagel-dill",
+      "name": "Bagel + Dill & Scallion Schmear",
+      "aliases": ["dill schmear", "dill bagel", "scallion schmear"],
+      "category": "bagels",
+      "price": 8,
+      "quantity": 30,
+      "allergens": ["gluten", "dairy"],
+      "dietary": ["vegetarian"],
+      "description": "House bagel with dill and scallion schmear."
+    },
+    {
+      "id": "black-tea",
+      "name": "Black Tea with Jam",
+      "aliases": ["tea", "чай", "black tea"],
+      "category": "drinks",
+      "price": 4,
+      "quantity": 60,
+      "allergens": [],
+      "dietary": ["vegan", "gluten_free", "dairy_free"],
+      "description": "Strong black tea served with a spoon of jam, the way grandma makes it."
+    }
+  ],
+  "seedReservations": []
+}

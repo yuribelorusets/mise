@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mise</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#f6f5f3; --panel:#fff; --ink:#1c1917; --muted:#78716c; --line:#e7e5e4; --accent:#3f6212; --accent-soft:#ecfccb; --guest:#1c1917; --err:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f0f0e; --panel:#1a1918; --ink:#f5f5f4; --muted:#a8a29e; --line:#2e2c2a; --accent:#a3e635; --accent-soft:#1f2a10; --guest:#f5f5f4; } }
+  * { box-sizing:border-box } body { margin:0; font:15px/1.5 Inter, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--line); }
+  .brand { font-weight:700; letter-spacing:-.01em } .brand span { color:var(--muted); font-weight:500 }
+  .pill { font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:3px 10px }
+  main { display:grid; grid-template-columns: 1fr 380px; height: calc(100vh - 57px); }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 220px } }
+  .chat { display:flex; flex-direction:column; min-height:0 }
+  #log { flex:1; overflow:auto; padding:24px; display:flex; flex-direction:column; gap:10px }
+  .msg { max-width:72%; padding:10px 14px; border-radius:14px; white-space:pre-wrap }
+  .guest { align-self:flex-end; background:var(--guest); color:var(--bg); border-bottom-right-radius:4px }
+  .host { align-self:flex-start; background:var(--panel); border:1px solid var(--line); border-bottom-left-radius:4px }
+  .suggest { display:flex; gap:8px; flex-wrap:wrap; padding:0 24px 10px }
+  .suggest button { font:inherit; font-size:13px; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:999px; padding:5px 12px; cursor:pointer }
+  form { display:flex; gap:8px; padding:14px 24px 20px; border-top:1px solid var(--line) }
+  input { flex:1; font:inherit; padding:11px 14px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--ink) }
+  form button { font:inherit; font-weight:600; padding:0 18px; border-radius:10px; border:0; background:var(--accent); color:var(--bg); cursor:pointer }
+  aside { border-left:1px solid var(--line); background:var(--panel); overflow:auto; padding:18px }
+  aside h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0 0 12px }
+  .call { font:12.5px/1.45 "JetBrains Mono", ui-monospace, monospace; border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:8px; overflow-wrap:anywhere }
+  .call b { color:var(--accent) } .call.err b { color:var(--err) } .call .meta { color:var(--muted) }
+  .empty { color:var(--muted); font-size:13px }
+  .event { font-size:13px; color:var(--muted); padding:0 24px; margin-top:-2px }
+  .draft { background:#fef3c7; color:#92400e; font-size:12.5px; padding:6px 20px; display:none }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Mise <span id="who">· front-of-house agent</span></div>
+  <div class="pill" id="model">connecting…</div>
+</header>
+<div class="draft" id="draft">Draft menu: prices, quantities and dates are placeholders.</div>
+<main>
+  <section class="chat">
+    <div id="log"><div class="msg host" id="hello">Hi! How can I help?</div></div>
+    <div class="suggest" id="suggest"></div>
+    <form id="f"><input id="m" autocomplete="off" placeholder="Ask anything…" /><button>Send</button></form>
+  </section>
+  <aside><h2>Agent trace</h2><div id="trace"><p class="empty">Tool calls appear here as the agent works.</p></div></aside>
+</main>
+<script>
+  const sessionId = crypto.randomUUID();
+  const $ = (id) => document.getElementById(id);
+  const day = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
+  fetch("/api/config").then((r) => r.json()).then((c) => {
+    document.title = `${c.name} · Mise`;
+    $("who").textContent = c.mode === "popup" ? `· preorders for ${c.name}` : `· front-of-house agent for ${c.name}`;
+    $("model").textContent = c.llm;
+    if (c.accent) document.documentElement.style.setProperty("--accent", c.accent);
+    if (c.draft) $("draft").style.display = "block";
+    $("hello").textContent = c.mode === "popup"
+      ? `Hi! I take preorders for ${c.name}${c.popup ? ` (${day(c.popup.eventDate)}, pickup ${c.popup.pickupWindows[0]}–${c.popup.pickupWindows.at(-1)})` : ""}. Ask about the menu or allergies, or tell me what you'd like. English, Русский, Українська, Español.`
+      : `Hi! I'm the host at ${c.name}. I can book a table, answer menu and allergy questions, or take a pickup order, in English, Español, Русский or Français.`;
+    for (const e of c.examples) { const b = document.createElement("button"); b.textContent = e; b.onclick = () => send(e); $("suggest").append(b); }
+  }).catch(() => ($("model").textContent = "offline"));
+
+  function bubble(text, who) { const d = document.createElement("div"); d.className = `msg ${who}`; d.textContent = text; $("log").append(d); $("log").scrollTop = 1e9; return d; }
+  function trace(calls) {
+    if (!calls.length) return;
+    const t = $("trace"); if (t.querySelector(".empty")) t.innerHTML = "";
+    for (const c of calls) {
+      const d = document.createElement("div"); d.className = "call" + (c.isError ? " err" : "");
+      d.innerHTML = `<b></b> <span class="meta"></span><div class="in"></div><div class="meta out"></div>`;
+      d.querySelector("b").textContent = c.name;
+      d.querySelector(".meta").textContent = `${c.ms}ms${c.isError ? " · error" : ""}`;
+      d.querySelector(".in").textContent = JSON.stringify(c.input);
+      d.querySelector(".out").textContent = "→ " + JSON.stringify(c.output).slice(0, 220);
+      t.prepend(d);
+    }
+  }
+  async function send(text) {
+    if (!text.trim()) return;
+    bubble(text, "guest"); $("m").value = "";
+    const pending = bubble("…", "host");
+    try {
+      const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, message: text }) });
+      const body = await r.json();
+      pending.textContent = body.reply ?? body.error; trace(body.toolCalls ?? []);
+    } catch { pending.textContent = "Couldn't reach the server."; }
+  }
+  $("f").onsubmit = (e) => { e.preventDefault(); send($("m").value); };
+</script>
+</body>
+</html>

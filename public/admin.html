@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Owner dashboard · Mise</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#f6f5f3; --panel:#fff; --ink:#1c1917; --muted:#78716c; --line:#e7e5e4; --accent:#3f6212; --warn:#b45309; --err:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f0f0e; --panel:#1a1918; --ink:#f5f5f4; --muted:#a8a29e; --line:#2e2c2a; --accent:#a3e635; --warn:#fbbf24; --err:#f87171; } }
+  * { box-sizing:border-box } body { margin:0; font:14px/1.5 Inter, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap }
+  .brand { font-weight:700 } .brand span { color:var(--muted); font-weight:500 }
+  .actions { display:flex; gap:8px; align-items:center } .actions a, .actions button { font:inherit; font-size:13px; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:5px 10px; text-decoration:none; cursor:pointer }
+  .muted { color:var(--muted) } .num { font-variant-numeric:tabular-nums }
+  main { max-width:1180px; margin:0 auto; padding:20px 16px 60px; display:grid; gap:18px }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px }
+  .tile { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px }
+  .tile .k { font-size:12px; color:var(--muted) } .tile .v { font-size:22px; font-weight:650; letter-spacing:-.01em; font-variant-numeric:tabular-nums }
+  .tile .s { font-size:12px; color:var(--muted) }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:18px } @media (max-width: 860px) { .grid2 { grid-template-columns:1fr } }
+  section.card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; min-width:0 }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0 0 10px }
+  table { width:100%; border-collapse:collapse } th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top } th { font-size:12px; color:var(--muted); font-weight:500 }
+  td.r, th.r { text-align:right }
+  .bar { height:6px; border-radius:3px; background:var(--line); overflow:hidden; min-width:60px } .bar i { display:block; height:100%; background:var(--accent) }
+  .low { color:var(--warn); font-weight:600 } .out { color:var(--err); font-weight:600 }
+  .win { border-top:1px solid var(--line); padding:8px 0 } .win:first-of-type { border-top:0 } .win b { font-variant-numeric:tabular-nums }
+  details { border-top:1px solid var(--line); padding:8px 0 } summary { cursor:pointer } .turn { margin:6px 0 0 12px; font-size:13px } .turn .g { color:var(--muted) }
+  .tag { font-size:11px; border:1px solid var(--line); border-radius:999px; padding:1px 7px; margin-left:6px; color:var(--muted) } .tag.ok { color:var(--accent); border-color:currentColor } .tag.h { color:var(--warn); border-color:currentColor }
+  .gate { max-width:360px; margin:80px auto; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px }
+  .gate input { width:100%; font:inherit; padding:10px 12px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); margin:10px 0 }
+  .gate button { font:inherit; font-weight:600; width:100%; padding:10px; border:0; border-radius:8px; background:var(--accent); color:var(--bg); cursor:pointer }
+  .empty { color:var(--muted); font-size:13px }
+  @media (max-width: 640px) { .sm-hide { display:none } td, th { padding:6px 4px } }
+  @media print { header .actions, .noprint { display:none } body { background:#fff; color:#000 } section.card, .tile { border-color:#ccc } }
+</style>
+</head>
+<body>
+<div id="gate" class="gate" hidden>
+  <b>Owner dashboard</b>
+  <p class="muted">Enter the ADMIN_TOKEN from your server's environment.</p>
+  <form id="gf"><input id="tok" type="password" autocomplete="current-password" placeholder="Admin token" /><button>Open</button></form>
+  <p id="gerr" class="out"></p>
+</div>
+<div id="app" hidden>
+  <header>
+    <div class="brand">Mise <span id="who"></span></div>
+    <div class="actions"><span class="muted" id="updated"></span><a id="csv" href="#">Orders CSV</a><button onclick="print()">Print sheet</button></div>
+  </header>
+  <main>
+    <div class="tiles" id="tiles"></div>
+    <div class="grid2">
+      <section class="card"><h2>Prep list</h2><div id="prep"></div></section>
+      <section class="card"><h2 id="sheetTitle">Pickup sheet</h2><div id="sheet"></div></section>
+    </div>
+    <section class="card"><h2>Orders</h2><div id="orders"></div></section>
+    <div class="grid2 noprint">
+      <section class="card"><h2>Conversations</h2><div id="convos"></div></section>
+      <section class="card"><h2>Needs a human</h2><div id="handoffs"></div></section>
+    </div>
+  </main>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const money = (n) => `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  const cents = (n) => n < 0.01 ? `${(n * 100).toFixed(2)}¢` : `$${n.toFixed(3)}`;
+  const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  // Accept ?token= once (from a bookmark), then keep it out of the address bar.
+  const url = new URL(location.href);
+  if (url.searchParams.get("token")) { try { sessionStorage.setItem("mise-admin", url.searchParams.get("token")); } catch {} url.searchParams.delete("token"); history.replaceState(null, "", url); }
+  let token = ""; try { token = sessionStorage.getItem("mise-admin") || ""; } catch {}
+
+  $("gf").onsubmit = (e) => { e.preventDefault(); token = $("tok").value.trim(); try { sessionStorage.setItem("mise-admin", token); } catch {} load(); };
+
+  async function load() {
+    if (!token) { $("gate").hidden = false; return; }
+    const r = await fetch("/admin/api/summary", { headers: { authorization: `Bearer ${token}` } });
+    if (!r.ok) { $("app").hidden = true; $("gate").hidden = false; $("gerr").textContent = (await r.json().catch(() => ({}))).error || `Error ${r.status}`; return; }
+    $("gate").hidden = true; $("app").hidden = false;
+    render(await r.json());
+    $("updated").textContent = `updated ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
+  }
+
+  function render(d) {
+    const k = d.kpis, popup = d.restaurant.mode === "popup";
+    document.title = `${d.restaurant.name} · Owner dashboard`;
+    if (d.restaurant.accent) document.documentElement.style.setProperty("--accent", d.restaurant.accent);
+    $("who").textContent = `· ${d.restaurant.name}${popup && d.restaurant.popup ? ` · pop-up ${d.restaurant.popup.eventDate}` : ""}${d.restaurant.draft ? " · DRAFT" : ""}`;
+    // Download with the token in a header, not the URL, so it doesn't end up in logs or browser history.
+    $("csv").onclick = async (e) => {
+      e.preventDefault();
+      const r = await fetch("/admin/api/orders.csv", { headers: { authorization: `Bearer ${token}` } });
+      if (!r.ok) return;
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(await r.blob()), download: `${d.restaurant.id}-orders.csv` });
+      a.click(); URL.revokeObjectURL(a.href);
+    };
+
+    const tiles = [
+      ["Revenue", money(k.revenue), `${k.orders} order${k.orders === 1 ? "" : "s"} · avg ${money(k.avgOrder)}`],
+      ["Conversations", k.conversations, `${Math.round(k.conversion * 100)}% ${popup ? "ordered" : "ordered or booked"}`],
+      ...(popup ? [] : [["Reservations", k.reservations, "booked by the agent"]]),
+      ["Needed a human", k.handoffs, `${k.toolErrors} tool error${k.toolErrors === 1 ? "" : "s"} caught`],
+      ["AI cost", cents(k.costUsd), `${cents(k.costPerConversation)} per conversation`],
+      ["Cost per order", k.orders ? cents(k.costPerOrder) : "–", !k.orders ? "no orders yet" : k.costPerOrder ? `${Math.round(k.avgOrder / k.costPerOrder).toLocaleString()}× return on AI spend` : "offline mock: no AI cost"],
+      ["Today's budget", `${cents(k.spentTodayUsd)} / $${k.dailyBudgetUsd}`, `avg reply ${(k.avgLatencyMs / 1000).toFixed(1)}s`],
+    ];
+    $("tiles").innerHTML = tiles.map(([a, b, c]) => `<div class="tile"><div class="k">${esc(a)}</div><div class="v">${esc(b)}</div><div class="s">${esc(c)}</div></div>`).join("");
+
+    $("prep").innerHTML = `<table><tr><th>Item</th><th class="r">Sold</th>${d.prep.some((p) => p.batch) ? `<th class="r">Left</th><th></th>` : ""}</tr>${d.prep.map((p) => {
+      const cls = p.remaining === 0 ? "out" : p.batch && p.remaining / p.batch <= 0.2 ? "low" : "";
+      return `<tr><td>${esc(p.name)}</td><td class="r num"><b>${p.sold}</b></td>${p.batch ? `<td class="r num ${cls}">${p.remaining === 0 ? "sold out" : `${p.remaining}/${p.batch}`}</td><td><div class="bar"><i style="width:${Math.round((100 * p.sold) / p.batch)}%"></i></div></td>` : d.prep.some((x) => x.batch) ? "<td></td><td></td>" : ""}</tr>`;
+    }).join("")}</table>`;
+
+    if (popup) {
+      $("sheetTitle").textContent = "Pickup sheet";
+      $("sheet").innerHTML = d.windows.map((w) => `<div class="win"><b>${esc(w.time)}</b> <span class="muted">${w.orders.length} order${w.orders.length === 1 ? "" : "s"} · ${w.left} spot${w.left === 1 ? "" : "s"} left</span>${w.orders.map((o) => `<div>☐ ${esc(o.name)} <span class="muted">${esc(o.id)}</span> · ${esc(o.items)}</div>`).join("")}</div>`).join("") || `<p class="empty">No pickup windows configured.</p>`;
+    } else {
+      $("sheetTitle").textContent = "Reservations";
+      $("sheet").innerHTML = d.reservations.length ? `<table><tr><th>When</th><th>Guest</th><th class="r">Party</th><th>Code</th></tr>${d.reservations.map((r) => `<tr><td class="num">${esc(r.date)} ${esc(r.time)}</td><td>${esc(r.name)}<div class="muted">${esc(r.phone)}</div></td><td class="r">${r.partySize}</td><td class="muted">${esc(r.code)}</td></tr>`).join("")}</table>` : `<p class="empty">No reservations yet.</p>`;
+    }
+
+    $("orders").innerHTML = d.orders.length ? `<table><tr><th class="sm-hide">Code</th><th>Pickup</th><th>Guest</th><th>Items</th><th class="r">Total</th></tr>${d.orders.map((o) => `<tr><td class="muted sm-hide">${esc(o.id)}</td><td class="num" style="white-space:nowrap">${esc(o.pickupTime)}<div class="muted">${esc(o.pickupDate ? o.pickupDate.slice(5) : "")}</div></td><td>${esc(o.name)}<div class="muted" style="white-space:nowrap">${esc(o.phone)}</div></td><td>${o.items.map((l) => `${l.quantity}× ${esc(l.name)}`).join("<br>")}${o.notes ? `<div class="muted">${esc(o.notes)}</div>` : ""}</td><td class="r num">${money(o.total)}</td></tr>`).join("")}</table>` : `<p class="empty">No orders yet. Share the chat link and they'll show up here.</p>`;
+
+    $("convos").innerHTML = d.conversations.length ? d.conversations.map((c) => `<details><summary>${time(c.started)} · ${esc(c.channel)} · ${c.turns.length} msg${c.ordered ? `<span class="tag ok">ordered</span>` : ""}${c.handoff ? `<span class="tag h">handoff</span>` : ""}<span class="muted"> · ${cents(c.costUsd)}</span></summary>${c.turns.map((t) => `<div class="turn"><div class="g">Guest: ${esc(t.user)}</div><div>Agent: ${esc(t.reply)}</div>${t.tools.length ? `<div class="muted" style="font:12px 'JetBrains Mono',monospace">${esc(t.tools.join(" → "))}</div>` : ""}</div>`).join("")}</details>`).join("") : `<p class="empty">No conversations yet.</p>`;
+
+    $("handoffs").innerHTML = d.handoffs.length ? d.handoffs.map((h) => `<div class="win"><span class="muted">${time(h.at)} · ${esc(h.channel)}</span><div>${esc(h.user)}</div></div>`).join("") : `<p class="empty">Nothing needs you right now.</p>`;
+  }
+
+  load();
+  setInterval(() => { if (token && !document.hidden) load(); }, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import type { Server } from "node:http";
+import { createApp } from "../src/server.js";
+import { MockLLM } from "../src/llm/mock.js";
+import { WebhookClient } from "../src/integrations/webhook.js";
+import { loadRestaurant } from "../src/domain/restaurant.js";
+
+let server: Server;
+let base = "";
+beforeAll(async () => {
+  process.env.MISE_TODAY = "2026-12-04";
+  delete process.env.TWILIO_AUTH_TOKEN;
+  process.env.ADMIN_TOKEN = "owner-secret";
+  const app = createApp({ llm: new MockLLM(), webhook: new WebhookClient({ url: "", fallbackFile: null }), limits: { perMinute: 1000 } });
+  await new Promise<void>((r) => { server = app.listen(0, () => r()); });
+  const addr = server.address();
+  base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
+});
+afterAll(() => server.close());
+const chat = (url: string, sessionId: string, message: string) =>
+  fetch(`${url}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, message }) });
+
+async function start(app: ReturnType<typeof createApp>) {
+  const s = await new Promise<Server>((r) => { const x = app.listen(0, () => r(x)); });
+  const a = s.address();
+  return { url: `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}`, close: () => s.close() };
+}
+
+describe("http", () => {
+  it("chats and returns the tool trace", async () => {
+    const res = await fetch(`${base}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: "a", message: "Do you have sushi?" }) });
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.toolCalls[0].name).toBe("search_menu");
+    expect(body.reply).toMatch(/don't/);
+  });
+  it("validates input", async () => {
+    const res = await fetch(`${base}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "" }) });
+    expect(res.status).toBe(400);
+  });
+  it("answers a phone turn with TwiML", async () => {
+    const res = await fetch(`${base}/voice/turn`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ CallSid: "CA1", SpeechResult: "Do you have sushi?" }) });
+    const xml = await res.text();
+    expect(res.headers.get("content-type")).toMatch(/xml/);
+    expect(xml).toContain("<Gather");
+    expect(xml).toMatch(/don&#39;t|don't/);
+  });
+  it("serves branding for the chat page", async () => {
+    const body = await (await fetch(`${base}/api/config`)).json();
+    expect(body).toMatchObject({ id: "fennel-ash", mode: "restaurant", name: "Fennel & Ash" });
+    expect(body.examples.length).toBeGreaterThan(0);
+  });
+  it("protects the owner dashboard and reports what happened", async () => {
+    expect((await fetch(`${base}/admin/api/summary`)).status).toBe(401);
+    expect((await fetch(`${base}/admin/api/summary`, { headers: { authorization: "Bearer nope" } })).status).toBe(401);
+    await chat(base, "owner-test", "I'd like to order 2 olive oil cake for pickup. Name is Sam, 510-555-0105.");
+    const sum = await (await fetch(`${base}/admin/api/summary`, { headers: { authorization: "Bearer owner-secret" } })).json();
+    expect(sum.kpis.orders).toBeGreaterThanOrEqual(1);
+    expect(sum.conversations.some((c: { id: string; ordered: boolean }) => c.id === "owner-test" && c.ordered)).toBe(true);
+    const csv = await fetch(`${base}/admin/api/orders.csv?token=owner-secret`);
+    expect(csv.headers.get("content-type")).toMatch(/csv/);
+    expect(await csv.text()).toMatch(/Olive Oil Cake/);
+  });
+});
+
+describe("guardrails", () => {
+  const quiet = () => new WebhookClient({ url: "", fallbackFile: null });
+  it("rate limits a visitor who floods the chat", async () => {
+    const app = await start(createApp({ llm: new MockLLM(), webhook: quiet(), limits: { perMinute: 2 } }));
+    const codes = [];
+    for (let i = 0; i < 3; i++) codes.push((await chat(app.url, "flood", "hi")).status);
+    app.close();
+    expect(codes).toEqual([200, 200, 429]);
+  });
+  it("stops calling the model once the daily budget is spent", async () => {
+    let calls = 0;
+    const pricey = { name: "anthropic:claude-sonnet-5-5", complete: async () => { calls++; return { content: [{ type: "text" as const, text: "hi" }], stop_reason: "end_turn", usage: { input_tokens: 100_000, output_tokens: 0 } }; } };
+    const app = await start(createApp({ llm: pricey, webhook: quiet(), limits: { perMinute: 100, dailyBudgetUsd: 0.1 } }));
+    await chat(app.url, "b", "hello"); // spends $0.20
+    const body = await (await chat(app.url, "b", "hello again")).json();
+    app.close();
+    expect(calls).toBe(1);
+    expect(body).toMatchObject({ handoff: true, limited: "budget" });
+  });
+  it("caps very long conversations", async () => {
+    const app = await start(createApp({ llm: new MockLLM(), webhook: quiet(), limits: { perMinute: 100, turnsPerSession: 2 } }));
+    for (let i = 0; i < 2; i++) await chat(app.url, "long", "hi");
+    const body = await (await chat(app.url, "long", "hi")).json();
+    app.close();
+    expect(body.limited).toBe("turns");
+  });
+});
+
+describe("pop-up deployment", () => {
+  it("brands the chat and takes a preorder end to end", async () => {
+    const config = loadRestaurant("ruki");
+    const app = await start(createApp({ config, llm: new MockLLM(config), webhook: new WebhookClient({ url: "", fallbackFile: null }), limits: { perMinute: 100 } }));
+    const cfg = await (await fetch(`${app.url}/api/config`)).json();
+    await chat(app.url, "r", "Can I preorder 2 syrniki?");
+    await chat(app.url, "r", "10:30");
+    const done = await (await chat(app.url, "r", "Anya, 510-555-0300")).json();
+    app.close();
+    expect(cfg).toMatchObject({ mode: "popup", name: "Ruki", popup: { eventDate: "2026-12-05" } });
+    expect(done.reply).toMatch(/RK-[A-Z0-9]{6}/);
+  });
+});

@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: mise
+    runtime: node
+    plan: starter # persistent disks need a paid instance; on the free plan, drop the disk and orders live in memory
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: mise-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: MISE_RESTAURANT
+        value: ruki
+      - key: DATA_DIR
+        value: /var/data
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: MISE_DAILY_BUDGET_USD
+        value: "2"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: MISE_MODEL
+        value: claude-sonnet-5-5
+      - key: CRM_WEBHOOK_URL
+        sync: false
+      - key: CRM_WEBHOOK_SECRET
+        generateValue: true
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: MANAGER_PHONE
+        sync: false
