@@ -23,6 +23,15 @@ type Entry =
   | { kind: "order"; at: string; value: Order }
   | { kind: "turn"; at: string; value: TurnLog };
 
+/** Days to keep chats and guest details: MISE_RETAIN_DAYS if it's a number of at least 1, otherwise 90. */
+export function retainDays(raw = process.env.MISE_RETAIN_DAYS): number {
+  if (raw === undefined) return 90;
+  const n = raw.trim() === "" ? Number.NaN : Number(raw);
+  if (Number.isFinite(n) && n >= 1) return n;
+  console.warn(`MISE_RETAIN_DAYS="${raw}" isn't a number of days (1 or more); using 90.`);
+  return 90;
+}
+
 /**
  * Append-only JSONL log of everything that happened: orders and every
  * conversation turn with its cost. Replayed on startup so a restart doesn't lose
@@ -63,6 +72,7 @@ export class Ledger implements Recorder {
 
   /** Drop chats older than `retainDays` and strip name and phone from older orders (kept for totals). */
   compact(now: Date, retainDays: number) {
+    if (!Number.isFinite(retainDays) || retainDays < 1) throw new Error(`Can't retain data for ${retainDays} days: use a number of at least 1.`);
     if (!this.file) return;
     const cutoff = now.getTime() - retainDays * 86_400_000;
     const old = (e: Entry) => Date.parse(e.at) < cutoff;

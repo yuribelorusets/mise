@@ -102,6 +102,17 @@ describe("pop-up deployment", () => {
     expect(done.reply).toMatch(/RK-[A-Z0-9]{6}/);
   });
 
+  it("falls back to 90 days when MISE_RETAIN_DAYS isn't a usable number", async () => {
+    for (const bad of ["abc", "", "0"]) {
+      process.env.MISE_RETAIN_DAYS = bad;
+      const app = await start(createApp({ llm: new MockLLM(), webhook: new WebhookClient({ url: "", fallbackFile: null }) }));
+      const cfg = await (await fetch(`${app.url}/api/config`)).json();
+      app.close();
+      expect(cfg.privacyNotice).toMatch(/after 90 days/);
+    }
+    delete process.env.MISE_RETAIN_DAYS;
+  });
+
   it("tells guests what's kept and for how long", async () => {
     process.env.MISE_RETAIN_DAYS = "60";
     const app = await start(createApp({ llm: new MockLLM(), webhook: new WebhookClient({ url: "", fallbackFile: null }) }));

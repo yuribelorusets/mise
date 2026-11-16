@@ -128,6 +128,18 @@ describe("ledger", () => {
     expect(text).not.toMatch(/reservation/);
   });
 
+  it("refuses a retention that isn't a number of days, and keeps today's turns", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mise-"));
+    const now = new Date("2026-12-04T18:00:00-08:00");
+    const today = now.toISOString();
+    appendFileSync(join(dir, "ruki.jsonl"), JSON.stringify({ kind: "turn", at: today, value: { at: today, sessionId: "t", costUsd: 0.5 } }) + "\n");
+    const l = new Ledger(dir, "ruki");
+    expect(() => l.compact(now, 0)).toThrow(/retain/i);
+    expect(() => l.compact(now, Number.NaN)).toThrow(/retain/i);
+    l.compact(now, 90);
+    expect(new Ledger(dir, "ruki").spentToday(now)).toBeCloseTo(0.5);
+  });
+
   it("tracks spend per day", () => {
     const l = new Ledger(undefined, "x");
     const turn = { sessionId: "s", channel: "chat", user: "", reply: "", tools: [], handoff: false, model: "m", inputTokens: 0, outputTokens: 0, ms: 1 };

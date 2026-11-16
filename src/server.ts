@@ -6,7 +6,7 @@ import { loadRestaurant, RestaurantStore, type RestaurantConfig } from "./domain
 import { WebhookClient } from "./integrations/webhook.js";
 import { runTurn, type Session } from "./agent/agent.js";
 import { makeLLM, now } from "./config.js";
-import { Ledger } from "./ops/ledger.js";
+import { Ledger, retainDays } from "./ops/ledger.js";
 import { costUsd } from "./ops/pricing.js";
 import { RateLimiter, limitsFromEnv, type Limits } from "./ops/guardrails.js";
 import { adminRouter } from "./ops/admin.js";
@@ -27,8 +27,6 @@ export const staticDir = (exists: (p: string) => boolean = existsSync) => (exist
 
 const MAX_SESSIONS = 2000;
 const SESSION_IDLE_MS = 3 * 60 * 60_000; // forget a conversation after 3 idle hours (it's still in the ledger)
-
-const retainDays = () => Number(process.env.MISE_RETAIN_DAYS ?? 90);
 
 export function createApp(opts: AppOptions = {}) {
   const config = opts.config ?? opts.store?.config ?? loadRestaurant();
