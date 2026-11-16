@@ -40,11 +40,12 @@ export class FileStore implements KitchenStore {
     if (existsSync(this.eventsFile)) {
       const text = readFileSync(this.eventsFile, "utf8");
       this.torn = text.length > 0 && !text.endsWith("\n");
+      const seen = new Set<string>();
       for (const line of text.split("\n")) {
         if (!line.trim()) continue;
         try {
           const e: unknown = JSON.parse(line);
-          if (isStockEvent(e)) this.log.push(e);
+          if (isStockEvent(e)) { if (!seen.has(e.id)) { seen.add(e.id); this.log.push(e); } }
           else console.warn(`[mise] skipped a line that isn't a stock event in ${this.eventsFile}`);
         } catch { console.warn(`[mise] skipped a corrupt line in ${this.eventsFile}`); }
       }

@@ -115,7 +115,7 @@ describe("kitchen stock", () => {
   });
 
   // Backlog: "The stock file is replayed without checking for repeated event ids."
-  it.fails("counts an event once when its line is in the stock file twice", () => {
+  it("counts an event once when its line is in the stock file twice", () => {
     const dir = mkdtempSync(join(tmpdir(), "kitchen-"));
     const seed: Catalog = { items: [{ id: "eggs", name: "Eggs", aliases: [], baseUnit: "each", units: {}, allergens: [] }], locations: [], recipes: [], plans: [] };
     // Two processes on one data dir each see an empty log and both append the same confirmed event.
