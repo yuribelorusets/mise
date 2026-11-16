@@ -5,6 +5,7 @@ import { loadRestaurant, RestaurantStore, type RestaurantConfig } from "../domai
 import { WebhookClient } from "../integrations/webhook.js";
 import { runTurn, type ToolCallTrace } from "../agent/agent.js";
 import { makeLLM, now } from "../config.js";
+import { costUsd } from "../ops/pricing.js";
 import { grade, type Check, type Expectation } from "./graders.js";
 import { judge } from "./judge.js";
 import { renderHtml } from "./report.js";
@@ -22,7 +23,19 @@ export interface Scenario {
 export interface ScenarioResult {
   id: string; tags: string[]; variant: string; trial: number; pass: boolean; checks: Check[];
   turns: { user: string; reply: string; toolCalls: ToolCallTrace[] }[];
-  restaurant: string; ms: number; tokens: number; judge?: { score: number; reason: string }; skipped?: boolean;
+  restaurant: string; ms: number; tokens: number; usage: { input_tokens: number; output_tokens: number }; model: string; judge?: { score: number; reason: string }; skipped?: boolean;
+}
+
+/** Adds up model spend across a run so it can stop at a cap. */
+export class SpendMeter {
+  spent = 0;
+  constructor(readonly max?: number) {}
+  add(model: string, usage: { input_tokens: number; output_tokens: number }) {
+    this.spent += costUsd(model, usage);
+  }
+  get exceeded() {
+    return this.max !== undefined && this.spent >= this.max;
+  }
 }
 
 export async function loadScenarios(dir = "evals/scenarios"): Promise<Scenario[]> {
@@ -41,16 +54,19 @@ export async function runScenario(s: Scenario, variant: { label: string; llm: st
   const turns: ScenarioResult["turns"] = [];
   const flags: string[] = [];
   let tokens = 0;
+  const usage = { input_tokens: 0, output_tokens: 0 };
   const t0 = Date.now();
   const say = async (user: string) => {
     const r = await runTurn(llm, session, user, { store, webhook, channel: "eval", now: now() });
     tokens += r.usage.input_tokens + r.usage.output_tokens;
+    usage.input_tokens += r.usage.input_tokens;
+    usage.output_tokens += r.usage.output_tokens;
     flags.push(...(r.flags ?? []));
     turns.push({ user, reply: r.reply, toolCalls: r.toolCalls });
     return r.reply;
   };
   if (variant.llm === "mock" && (s.simulate || s.tags?.includes("live")))
-    return { id: s.id, restaurant: config.id, tags: s.tags ?? [], variant: variant.label, trial, pass: true, skipped: true, checks: [], turns: [], ms: 0, tokens: 0 };
+    return { id: s.id, restaurant: config.id, tags: s.tags ?? [], variant: variant.label, trial, pass: true, skipped: true, checks: [], turns: [], ms: 0, tokens: 0, usage, model: llm.name };
   if (s.simulate) {
     const guest = simulatedGuest(makeLLM(variant.llm, process.env.MISE_SIM_MODEL ?? variant.model, config), s.simulate);
     let msg = await guest.next();
@@ -63,7 +79,7 @@ export async function runScenario(s: Scenario, variant: { label: string; llm: st
   const checks = grade(s.expect, turns.at(-1)?.reply ?? "", allCalls, webhook.delivered.map((e) => e.type), { store, ...before });
   // Always on: the agent must never show a guest an order code the system didn't issue.
   checks.push({ check: "never claimed an order code the system didn't issue", pass: !flags.includes("unverified_code") });
-  const result: ScenarioResult = { id: s.id, restaurant: config.id, tags: s.tags ?? [], variant: variant.label, trial, pass: checks.every((c) => c.pass), checks, turns, ms, tokens };
+  const result: ScenarioResult = { id: s.id, restaurant: config.id, tags: s.tags ?? [], variant: variant.label, trial, pass: checks.every((c) => c.pass), checks, turns, ms, tokens, usage, model: llm.name };
   if (withJudge) result.judge = await judge(turns);
   return result;
 }
@@ -79,7 +95,7 @@ async function main() {
       llm: { type: "string" }, model: { type: "string" },
       compare: { type: "string" }, // e.g. "claude-sonnet-5-5,claude-haiku-5-5"
       tag: { type: "string" }, restaurant: { type: "string" }, trials: { type: "string", default: "1" },
-      judge: { type: "boolean", default: false }, min: { type: "string", default: "0.9" },
+      judge: { type: "boolean", default: false }, "max-usd": { type: "string" }, min: { type: "string", default: "0.9" },
     },
   });
   let scenarios = await loadScenarios();
@@ -91,19 +107,27 @@ async function main() {
     : [{ label: llmKind === "mock" ? "mock" : values.model ?? process.env.MISE_MODEL ?? "claude-sonnet-5-5", llm: llmKind, model: values.model }];
   const trials = Number(values.trials);
 
+  const meter = new SpendMeter(values["max-usd"] === undefined ? undefined : Number(values["max-usd"]));
+  let stopped = false;
   const results: ScenarioResult[] = [];
-  for (const v of variants)
+  outer: for (const v of variants)
     for (const s of scenarios)
       for (let t = 1; t <= trials; t++) {
+        if (meter.exceeded) {
+          console.log(`\nStopped: spent $${meter.spent.toFixed(4)} of the $${meter.max} cap`);
+          stopped = true;
+          break outer;
+        }
         const r = await runScenario(s, v, t, values.judge);
         results.push(r);
+        meter.add(r.model, r.usage);
         const failed = r.checks.filter((c) => !c.pass);
         if (r.skipped) { console.log(`\x1b[33mSKIP\x1b[0m ${v.label.padEnd(20)} ${s.id} (needs a real model)`); break; }
         console.log(`${r.pass ? "\x1b[32mPASS\x1b[0m" : "\x1b[31mFAIL\x1b[0m"} ${v.label.padEnd(20)} ${s.id}${trials > 1 ? ` #${t}` : ""}`);
         for (const f of failed) console.log(`       ✗ ${f.check}${f.detail ? `  (${f.detail})` : ""}`);
       }
 
-  console.log("\nSummary");
+  console.log(`\nSummary (spent $${meter.spent.toFixed(4)})`);
   for (const v of variants) {
     const rs = results.filter((r) => r.variant === v.label && !r.skipped);
     const passed = rs.filter((r) => r.pass).length;
@@ -144,6 +168,7 @@ async function main() {
 
   const graded = results.filter((r) => !r.skipped);
   const rate = graded.filter((r) => r.pass).length / graded.length;
+  if (stopped) process.exit(2);
   if (rate < Number(values.min)) process.exit(1);
 }
 
