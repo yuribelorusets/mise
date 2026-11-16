@@ -53,6 +53,11 @@ describe("http", () => {
     const { privacyNotice } = await (await fetch(`${base}/api/config`)).json();
     for (const word of [/name/, /phone/, /notes/, /chat/, /90 days/, /owner can read/]) expect(privacyNotice).toMatch(word);
   });
+  it("sends the menu with prices for /order", async () => {
+    const { menu } = await (await fetch(`${base}/api/config`)).json();
+    expect(menu.find((m: { id: string }) => m.id === "syrniki")).toMatchObject({ name: "Babushka's Syrniki", price: 12 });
+    expect(menu[0]).not.toHaveProperty("quantity");
+  });
   it("protects the owner dashboard and reports what happened", async () => {
     expect((await fetch(`${base}/admin/api/summary`)).status).toBe(401);
     expect((await fetch(`${base}/admin/api/summary`, { headers: { authorization: "Bearer nope" } })).status).toBe(401);
