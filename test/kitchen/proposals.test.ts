@@ -200,4 +200,17 @@ describe("proposal lifecycle", () => {
     expect(again.book.confirm(p.id)).toEqual(result);
     expect(first.store.events()).toHaveLength(1);
   });
+
+  it("books nothing new when a retry with more lines follows a confirm that died after writing", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "proposals-")), "ruki.proposals.json");
+    const { store, book } = setup(file);
+    const p = book.create({ source: "chat", lines: [eggs] });
+    // The events were appended, but the file still says open (the save failed, then the process restarted).
+    store.append([{ id: `${p.id}-0`, at: "2026-12-04T18:00:00Z", kind: "receive", item: "eggs", location: "walk-in", qty: 360, source: "chat", proposal: p.id }]);
+    const again = setup(file, store).book;
+    const r = again.confirm(p.id, [eggs, flour]);
+    expect(r.events).toEqual([`${p.id}-0`]);
+    expect(r.proposal.status).toBe("confirmed");
+    expect(store.events()).toHaveLength(1);
+  });
 });

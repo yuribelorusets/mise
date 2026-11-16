@@ -88,6 +88,13 @@ export class ProposalBook {
     const p = this.need(id);
     if (p.status === "confirmed") return { proposal: this.view(p), events: [...(p.events ?? [])] };
     if (p.status === "discarded") throw new ProposalError("This proposal was discarded.", 409);
+    // A confirm that wrote its events and then died: finish it with what was booked, whatever the retry says.
+    const booked = this.store.events().filter((e) => e.proposal === p.id && e.id.startsWith(`${p.id}-`));
+    if (booked.length) {
+      Object.assign(p, { status: "confirmed", confirmedAt: booked[0].at, events: booked.map((e) => e.id) });
+      this.save();
+      return { proposal: this.view(p), events: [...p.events!] };
+    }
     const lines = edits ?? p.lines;
     if (!Array.isArray(lines) || !lines.length || lines.length > MAX_LINES) throw new ProposalError(`A proposal needs between 1 and ${MAX_LINES} lines.`);
     if (this.isStale(p, lines)) throw new ProposalError("Stock changed since this was made. Refresh it first.", 409);
