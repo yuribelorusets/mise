@@ -32,7 +32,7 @@ export function PrepList({ tasks, info }: Props) {
           return (
             <li key={t.item} className={checked ? "prep__row prep__row--done" : "prep__row"}>
               <label className="prep__label">
-                <input type="checkbox" className="prep__check" checked={checked} onChange={() => toggle(t.item)} aria-label={t.recipe} />
+                <input type="checkbox" className="prep__check" checked={checked} onChange={() => toggle(t.item)} />
                 <span className="prep__box" aria-hidden="true" />
                 <span className="prep__name">
                   <span className="prep__recipe">{t.recipe}</span>
