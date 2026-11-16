@@ -1,22 +1,9 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { explode } from "../../src/kitchen/plan.js";
-import type { Catalog, PlanLine } from "../../src/kitchen/types.js";
+import type { PlanLine } from "../../src/kitchen/types.js";
+import { syrnikiCatalog as c } from "./fixtures.js";
 
-const c: Catalog = {
-  items: [
-    { id: "cheese", name: "Farmer's cheese", aliases: [], baseUnit: "g", units: {}, allergens: [] },
-    { id: "eggs", name: "Eggs", aliases: [], baseUnit: "each", units: { case: 180 }, allergens: [] },
-    { id: "batter", name: "Batter", aliases: [], baseUnit: "g", units: {}, allergens: [] },
-    { id: "syrniki", name: "Syrniki", aliases: [], baseUnit: "each", units: { order: 3 }, allergens: [] },
-  ],
-  locations: [],
-  recipes: [
-    { id: "batter", name: "Batter", makes: "batter", yield: { qty: 2000, unit: "g" }, components: [{ item: "cheese", qty: 1000, unit: "g" }, { item: "eggs", qty: 4, unit: "each" }] },
-    { id: "syrniki", name: "Syrniki", makes: "syrniki", yield: { qty: 1, unit: "order" }, components: [{ item: "batter", qty: 150, unit: "g" }] },
-  ],
-  plans: [],
-};
 const plan = (qty: number): PlanLine[] => [{ item: "syrniki", qty, unit: "order", source: "manual" }];
 
 describe("explode", () => {
