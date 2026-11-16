@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Order, Recorder } from "../domain/restaurant.js";
+import { redactOrder as redact, type Order, type Recorder } from "../domain/restaurant.js";
 
 export interface TurnLog {
   at: string;
@@ -23,11 +23,6 @@ type Entry =
   | { kind: "order"; at: string; value: Order }
   | { kind: "turn"; at: string; value: TurnLog };
 
-/** An old order keeps its id, items, total and pickup slot (so stock and totals still add up), and nothing that says who ordered. */
-const redact = (o: Order): Order => {
-  const { notes: _notes, sessionId: _sessionId, ...rest } = o;
-  return { ...rest, name: "[removed]", phone: "" };
-};
 
 /** Days to keep chats and guest details: MISE_RETAIN_DAYS if it's a number of at least 1, otherwise 90. */
 export function retainDays(raw = process.env.MISE_RETAIN_DAYS): number {

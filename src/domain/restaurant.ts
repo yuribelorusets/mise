@@ -69,6 +69,12 @@ export interface Recorder {
   record(kind: "order", value: Order): void;
 }
 
+/** An old order keeps its id, items, total and pickup slot (so stock and totals still add up), and nothing that says who ordered. */
+export const redactOrder = (o: Order): Order => {
+  const { notes: _notes, sessionId: _sessionId, ...rest } = o;
+  return { ...rest, name: "[removed]", phone: "" };
+};
+
 /** Pop-up state: orders and remaining stock. One instance per process or per eval scenario. */
 export class RestaurantStore {
   readonly orders: Order[] = [];
@@ -81,6 +87,15 @@ export class RestaurantStore {
     this.recorder = opts.recorder;
   }
   private recorder?: Recorder;
+
+  /** After the ledger compacts, take its redacted copy of every order we hold, so the owner views match the file. */
+  adoptRedacted(fromLedger: Order[]) {
+    const byId = new Map(fromLedger.map((o) => [o.id, o]));
+    this.orders.forEach((o, i) => {
+      const r = byId.get(o.id);
+      if (r && r.name === redactOrder(o).name) this.orders[i] = r;
+    });
+  }
 
   menu(): MenuItem[] {
     return this.config.menu;

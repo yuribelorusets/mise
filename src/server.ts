@@ -33,15 +33,16 @@ export function createApp(opts: AppOptions = {}) {
   const ledger = opts.ledger ?? new Ledger(process.env.DATA_DIR, config.id);
   const webhook = opts.webhook ?? new WebhookClient();
   const days = retainDays();
+  const store = opts.store ?? new RestaurantStore(config, { history: ledger, recorder: ledger });
   if (ledger.persistent) {
     const compactAll = () => {
       ledger.compact(new Date(), days);
+      store.adoptRedacted(ledger.orders);
       webhook.compact(new Date(), days);
     };
     compactAll();
     scheduleCompaction(compactAll);
   }
-  const store = opts.store ?? new RestaurantStore(config, { history: ledger, recorder: ledger });
   const llm = opts.llm ?? makeLLM(undefined, undefined, config);
   const limits = { ...limitsFromEnv(), ...opts.limits };
   const limiter = new RateLimiter(limits.perMinute);
