@@ -19,13 +19,19 @@ Rules:
 - Never invent menu items the assistant hasn't mentioned unless your persona would plausibly ask for them.
 - When your goal is complete, or the assistant has clearly said it can't be done, reply with exactly ${DONE}.`;
   const history: MessageParam[] = [];
+  const usage = { input_tokens: 0, output_tokens: 0 };
 
   return {
     maxTurns: sim.max_turns ?? 8,
+    /** What the guest's own model calls have used so far; the eval run counts it against the spending cap. */
+    usage,
+    model: llm.name,
     /** The guest's next message, or null when they're done. `agentReply` is the agent's last message (undefined at the start). */
     async next(agentReply?: string): Promise<string | null> {
       history.push({ role: "user", content: agentReply ?? "(The chat window just opened. Send your first message.)" });
       const res = await llm.complete({ system, messages: history, tools: [] });
+      usage.input_tokens += res.usage?.input_tokens ?? 0;
+      usage.output_tokens += res.usage?.output_tokens ?? 0;
       const text = res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
       history.push({ role: "assistant", content: [{ type: "text", text: text || DONE }] });
       return !text || text.includes(DONE) ? null : text;

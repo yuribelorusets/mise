@@ -23,15 +23,23 @@ export interface Scenario {
 export interface ScenarioResult {
   id: string; tags: string[]; variant: string; trial: number; pass: boolean; checks: Check[];
   turns: { user: string; reply: string; toolCalls: ToolCallTrace[] }[];
-  restaurant: string; ms: number; tokens: number; usage: { input_tokens: number; output_tokens: number }; model: string; judge?: { score: number; reason: string }; skipped?: boolean;
+  restaurant: string; ms: number; tokens: number; usage: { input_tokens: number; output_tokens: number }; model: string;
+  extraUsd?: number; // simulated guest and judge calls, on top of `usage`
+  judge?: { score: number; reason: string }; skipped?: boolean;
 }
 
 /** Adds up model spend across a run so it can stop at a cap. */
 export class SpendMeter {
   spent = 0;
-  constructor(readonly max?: number) {}
-  add(model: string, usage: { input_tokens: number; output_tokens: number }) {
-    this.spent += costUsd(model, usage);
+  constructor(readonly max?: number) {
+    if (max !== undefined && (!Number.isFinite(max) || max < 0)) throw new Error(`The spending cap must be a number of dollars, 0 or more (got ${max}).`);
+  }
+  add(model: string, usage: { input_tokens: number; output_tokens: number }, extraUsd = 0) {
+    this.spent += costUsd(model, usage) + extraUsd;
+  }
+  /** Would spending `more` on top of what's counted so far reach the cap? */
+  wouldExceed(more: number) {
+    return this.max !== undefined && this.spent + more >= this.max;
   }
   get exceeded() {
     return this.max !== undefined && this.spent >= this.max;
@@ -43,7 +51,7 @@ export async function loadScenarios(dir = "evals/scenarios"): Promise<Scenario[]
   return (await Promise.all(files.map(async (f) => parse(await readFile(`${dir}/${f}`, "utf8")) as Scenario[]))).flat();
 }
 
-export async function runScenario(s: Scenario, variant: { label: string; llm: string; model?: string }, trial = 1, withJudge = false): Promise<ScenarioResult> {
+export async function runScenario(s: Scenario, variant: { label: string; llm: string; model?: string }, trial = 1, withJudge = false, meter?: SpendMeter): Promise<ScenarioResult> {
   const config = restaurant(s.restaurant ?? "ruki");
   const llm = makeLLM(variant.llm, variant.model, config);
   const store = new RestaurantStore(config);
@@ -55,6 +63,10 @@ export async function runScenario(s: Scenario, variant: { label: string; llm: st
   const flags: string[] = [];
   let tokens = 0;
   const usage = { input_tokens: 0, output_tokens: 0 };
+  let extraUsd = 0;
+  let cutOff = false;
+  // Cost of this scenario so far, checked between turns so one long scenario can't run far past the cap.
+  const overCap = () => !!meter?.wouldExceed(costUsd(llm.name, usage) + extraUsd);
   const t0 = Date.now();
   const say = async (user: string) => {
     const r = await runTurn(llm, session, user, { store, webhook, channel: "eval", now: now() });
@@ -69,10 +81,19 @@ export async function runScenario(s: Scenario, variant: { label: string; llm: st
     return { id: s.id, restaurant: config.id, tags: s.tags ?? [], variant: variant.label, trial, pass: true, skipped: true, checks: [], turns: [], ms: 0, tokens: 0, usage, model: llm.name };
   if (s.simulate) {
     const guest = simulatedGuest(makeLLM(variant.llm, process.env.MISE_SIM_MODEL ?? variant.model, config), s.simulate);
+    const guestCost = () => costUsd(guest.model, guest.usage);
     let msg = await guest.next();
-    for (let i = 0; msg && i < guest.maxTurns; i++) msg = await guest.next(await say(msg));
+    for (let i = 0; msg && i < guest.maxTurns; i++) {
+      extraUsd = guestCost();
+      if (overCap()) { cutOff = true; break; }
+      msg = await guest.next(await say(msg));
+    }
+    extraUsd = guestCost();
   } else {
-    for (const user of s.turns ?? []) await say(user);
+    for (const user of s.turns ?? []) {
+      if (overCap()) { cutOff = true; break; }
+      await say(user);
+    }
   }
   const ms = Date.now() - t0;
   const allCalls = turns.flatMap((t) => t.toolCalls);
@@ -80,8 +101,35 @@ export async function runScenario(s: Scenario, variant: { label: string; llm: st
   // Always on: the agent must never show a guest an order code the system didn't issue.
   checks.push({ check: "never claimed an order code the system didn't issue", pass: !flags.includes("unverified_code") });
   const result: ScenarioResult = { id: s.id, restaurant: config.id, tags: s.tags ?? [], variant: variant.label, trial, pass: checks.every((c) => c.pass), checks, turns, ms, tokens, usage, model: llm.name };
-  if (withJudge) result.judge = await judge(turns);
+  if (cutOff) { result.skipped = true; result.pass = true; } // stopped by the cap: don't report a half-run as pass or fail
+  else if (withJudge) {
+    const { usd, ...verdict } = await judge(turns);
+    result.judge = verdict;
+    extraUsd += usd;
+  }
+  result.extraUsd = extraUsd;
   return result;
+}
+
+/** Runs every scenario and trial for every variant, and stops as soon as the spending cap is reached. */
+export async function runAll<S extends { id: string }, V>(
+  scenarios: S[], variants: V[], trials: number,
+  run: (s: S, v: V, trial: number, meter: SpendMeter) => Promise<ScenarioResult>,
+  meter: SpendMeter,
+  onResult: (r: ScenarioResult, s: S, v: V, trial: number) => void = () => {},
+) {
+  const results: ScenarioResult[] = [];
+  for (const v of variants)
+    for (const s of scenarios)
+      for (let t = 1; t <= trials; t++) {
+        if (meter.exceeded) return { results, stopped: true };
+        const r = await run(s, v, t, meter);
+        results.push(r);
+        meter.add(r.model, r.usage, r.extraUsd);
+        onResult(r, s, v, t);
+        if (r.skipped && !meter.exceeded) break; // a scenario the mock can't run: skip its other trials too
+      }
+  return { results, stopped: meter.exceeded && results.at(-1)?.skipped === true }; // the last scenario was cut off mid-way
 }
 
 const configs = new Map<string, RestaurantConfig>();
@@ -107,25 +155,19 @@ async function main() {
     : [{ label: llmKind === "mock" ? "mock" : values.model ?? process.env.MISE_MODEL ?? "claude-sonnet-5-5", llm: llmKind, model: values.model }];
   const trials = Number(values.trials);
 
-  const meter = new SpendMeter(values["max-usd"] === undefined ? undefined : Number(values["max-usd"]));
-  let stopped = false;
-  const results: ScenarioResult[] = [];
-  outer: for (const v of variants)
-    for (const s of scenarios)
-      for (let t = 1; t <= trials; t++) {
-        if (meter.exceeded) {
-          console.log(`\nStopped: spent $${meter.spent.toFixed(4)} of the $${meter.max} cap`);
-          stopped = true;
-          break outer;
-        }
-        const r = await runScenario(s, v, t, values.judge);
-        results.push(r);
-        meter.add(r.model, r.usage);
-        const failed = r.checks.filter((c) => !c.pass);
-        if (r.skipped) { console.log(`\x1b[33mSKIP\x1b[0m ${v.label.padEnd(20)} ${s.id} (needs a real model)`); break; }
-        console.log(`${r.pass ? "\x1b[32mPASS\x1b[0m" : "\x1b[31mFAIL\x1b[0m"} ${v.label.padEnd(20)} ${s.id}${trials > 1 ? ` #${t}` : ""}`);
-        for (const f of failed) console.log(`       ✗ ${f.check}${f.detail ? `  (${f.detail})` : ""}`);
-      }
+  let meter: SpendMeter;
+  try {
+    meter = new SpendMeter(values["max-usd"] === undefined ? undefined : Number(values["max-usd"]));
+  } catch (e) {
+    console.error(`--max-usd: ${e instanceof Error ? e.message : e}`);
+    process.exit(1);
+  }
+  const { results, stopped } = await runAll(scenarios, variants, trials, (s, v, t, m) => runScenario(s, v, t, values.judge, m), meter, (r, s, v, t) => {
+    if (r.skipped) return console.log(`\x1b[33mSKIP\x1b[0m ${v.label.padEnd(20)} ${s.id} (${meter.exceeded ? "cut off by the spending cap" : "needs a real model"})`);
+    console.log(`${r.pass ? "\x1b[32mPASS\x1b[0m" : "\x1b[31mFAIL\x1b[0m"} ${v.label.padEnd(20)} ${s.id}${trials > 1 ? ` #${t}` : ""}`);
+    for (const f of r.checks.filter((c) => !c.pass)) console.log(`       ✗ ${f.check}${f.detail ? `  (${f.detail})` : ""}`);
+  });
+  if (stopped) console.log(`\nStopped: spent $${meter.spent.toFixed(4)} of the $${meter.max} cap`);
 
   console.log(`\nSummary (spent $${meter.spent.toFixed(4)})`);
   for (const v of variants) {
