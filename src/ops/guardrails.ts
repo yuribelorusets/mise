@@ -25,8 +25,18 @@ export interface Limits {
   dailyBudgetUsd: number; // once spent, the agent stops calling the model and hands off
 }
 
+/** A positive number from an environment variable, otherwise the default and a warning. */
+function envNumber(name: string, fallback: number, whole = false): number {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  const n = raw.trim() === "" ? Number.NaN : Number(raw);
+  if (Number.isFinite(n) && n > 0 && (!whole || Number.isInteger(n))) return n;
+  console.warn(`${name}="${raw}" isn't a ${whole ? "whole " : ""}number above 0; using ${fallback}.`);
+  return fallback;
+}
+
 export const limitsFromEnv = (): Limits => ({
-  perMinute: Number(process.env.MISE_RATE_PER_MIN ?? 10),
-  turnsPerSession: Number(process.env.MISE_MAX_TURNS ?? 30),
-  dailyBudgetUsd: Number(process.env.MISE_DAILY_BUDGET_USD ?? 2),
+  perMinute: envNumber("MISE_RATE_PER_MIN", 10, true),
+  turnsPerSession: envNumber("MISE_MAX_TURNS", 30, true),
+  dailyBudgetUsd: envNumber("MISE_DAILY_BUDGET_USD", 2),
 });
