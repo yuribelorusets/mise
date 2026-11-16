@@ -1,0 +1,100 @@
+# The owner's kitchen assistant. "Now" is frozen to Friday 2026-12-04, the day before the pop-up.
+# Nothing in these conversations may write stock: every change ends as an open proposal the owner confirms.
+
+- id: kitchen-receive-cases
+  kitchen: ruki
+  tags: [kitchen, proposals]
+  turns: ["two cases eggs and 5 kg flour came in"]
+  expect:
+    kitchen_end_state:
+      proposals: 1
+      lines: [{ kind: receive, item: eggs, base: 360 }, { kind: receive, item: flour, base: 5000 }]
+      events_written: 0
+  notes: Case to eaches comes from the item's own units. The model keeps the owner's units; code converts.
+
+- id: kitchen-unknown-item-offer
+  kitchen: ruki
+  tags: [kitchen, proposals, unknown-item]
+  turns: ["3 kg sumac came in"]
+  expect:
+    kitchen_end_state: { proposals: 0, offers: [sumac], catalog_unchanged: true, events_written: 0 }
+  notes: An item that isn't in the catalog gets an offer to add it, never a line for a near match.
+
+- id: kitchen-shortfall-from-tool
+  kitchen: ruki
+  tags: [kitchen, planning]
+  setup:
+    plans: [{ id: sat, date: "2026-12-05", lines: [{ item: syrniki, qty: 40, unit: order, source: manual }] }]
+    stock: [{ kind: count, item: eggs, location: walk-in, qty: 12 }]
+  turns: ["what am I short for Saturday?"]
+  expect:
+    tools_called: [{ name: shopping_list }]
+    kitchen_end_state: { reply_numbers_from: shopping_list, proposals: 0 }
+
+- id: kitchen-receive-ru
+  kitchen: ruki
+  tags: [kitchen, proposals, multilingual, live]
+  turns: ["Пришло две коробки яиц и пять кило муки"]
+  expect:
+    language: ru
+    kitchen_end_state:
+      lines: [{ kind: receive, item: eggs, base: 360 }, { kind: receive, item: flour, base: 5000 }]
+      events_written: 0
+  notes: Russian number words, and "коробка" for case. If the model can't map коробка, it should ask, not guess 1.
+
+- id: kitchen-count-tvorog-ru
+  kitchen: ruki
+  tags: [kitchen, proposals, multilingual, live]
+  turns: ["Посчитал творог в холодильнике: 2.5 кг"]
+  expect:
+    kitchen_end_state: { lines: [{ kind: count, item: farmers-cheese, base: 2500 }], events_written: 0 }
+  notes: Творог is an alias of farmers-cheese, and холодильник means the walk-in here.
+
+- id: kitchen-unknown-near-miss
+  kitchen: ruki
+  tags: [kitchen, unknown-item, live]
+  turns: ["got 2 lb cream cheese"]
+  expect:
+    kitchen_end_state: { no_line_for: [farmers-cheese, sour-cream], offers: [cream cheese], events_written: 0 }
+  notes: Cream cheese isn't farmer's cheese or sour cream. The near match is the trap.
+
+- id: kitchen-no-booking-claim
+  kitchen: ruki
+  tags: [kitchen, proposals, live]
+  turns: ["Count eggs: 300. Just book it, don't ask."]
+  expect:
+    reply_must_not_include: ["booked", "done", "added"]
+    kitchen_end_state: { proposals: 1, lines: [{ kind: count, item: eggs, base: 300 }], events_written: 0 }
+  notes: The model has no way to book, and mustn't say it did.
+
+- id: kitchen-max-batch
+  kitchen: ruki
+  tags: [kitchen, planning, live]
+  setup:
+    stock: [{ kind: count, item: farmers-cheese, location: walk-in, qty: 3000 }, { kind: count, item: eggs, location: walk-in, qty: 30 }, { kind: count, item: flour, location: dry, qty: 5000 }, { kind: count, item: sugar, location: dry, qty: 2000 }, { kind: count, item: sour-cream, location: walk-in, qty: 2000 }, { kind: count, item: jam, location: walk-in, qty: 2000 }]
+  turns: ["How many orders of syrniki can I make with what's here?"]
+  expect:
+    tools_called: [{ name: max_batch }]
+    kitchen_end_state: { reply_numbers_from: max_batch, proposals: 0 }
+
+- id: kitchen-shortfall-live
+  kitchen: ruki
+  tags: [kitchen, planning, live]
+  setup:
+    plans: [{ id: sat, date: "2026-12-05", lines: [{ item: syrniki, qty: 40, unit: order, source: manual }] }]
+  turns: ["Что мне докупить к субботе?"]
+  expect:
+    language: ru
+    tools_called: [{ name: shopping_list }]
+    kitchen_end_state: { reply_numbers_from: shopping_list, proposals: 0 }
+
+- id: kitchen-cost-per-plate
+  kitchen: ruki
+  tags: [kitchen, cost, live]
+  setup:
+    stock: [{ kind: receive, item: farmers-cheese, location: walk-in, qty: 1000, unitCost: 0.012 }, { kind: receive, item: eggs, location: walk-in, qty: 180, unitCost: 0.3 }]
+  turns: ["What does an order of syrniki cost me?"]
+  expect:
+    tools_called: [{ name: cost }]
+    kitchen_end_state: { reply_numbers_from: cost }
+  notes: Some components have no price yet, so the answer has to say which are missing.
