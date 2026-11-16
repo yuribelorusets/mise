@@ -17,13 +17,13 @@ const order = (s: RestaurantStore, item: string, quantity: number, pickupTime = 
   s.placeOrder({ name: "Anya", phone: "510-555-0100", items: [{ item, quantity }], pickupTime }, now);
 
 describe("pop-up mode", () => {
-  it("only offers pop-up tools, and refuses table tools even if a model asks", async () => {
+  it("only offers pop-up tools, and refuses a tool it wasn't given", async () => {
     expect(toolSpecs(ruki).map((t) => t.name)).toEqual(["search_menu", "list_pickup_windows", "place_order", "handoff_to_human"]);
     const store = new RestaurantStore(ruki);
-    const out = await runTool("create_reservation", { date: "2026-12-05", time: "11:00", partySize: 2, name: "A", phone: "510-555-0101" },
+    const out = await runTool("give_discount", { percent: 100 },
       { store, webhook: new WebhookClient({ url: "", fallbackFile: null }), sessionId: "t", channel: "eval", now: BEFORE_CUTOFF });
     expect(out.isError).toBe(true);
-    expect(store.reservations).toHaveLength(0);
+    expect(store.orders).toHaveLength(0);
   });
 
   it("tells the agent how many pieces come in one order", async () => {
@@ -79,6 +79,15 @@ describe("ledger", () => {
     const s = new RestaurantStore(ruki, { history: b, recorder: b });
     expect(s.orders).toHaveLength(1);
     expect(s.remaining("syrniki")).toBe(25);
+  });
+
+  it("skips reservation lines left in an old ledger", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mise-"));
+    appendFileSync(join(dir, "ruki.jsonl"),
+      JSON.stringify({ kind: "reservation", at: "2026-11-01T00:00:00Z", value: { code: "FA-ABC123" } }) + "\n" +
+      JSON.stringify({ kind: "order", at: "2026-11-01T00:00:00Z", value: { id: "RK-ABC123", items: [] } }) + "\n");
+    const ledger = new Ledger(dir, "ruki");
+    expect(ledger.orders).toHaveLength(1);
   });
 
   it("tracks spend per day", () => {

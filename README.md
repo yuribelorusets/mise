@@ -1,6 +1,6 @@
 # Mise
 
-**A multilingual AI ordering agent for small food businesses. It answers the website chat, takes preorders and pickup orders, books tables, handles allergy questions safely, and never sells more than the kitchen made. The owner gets a live dashboard with a prep list, a pickup sheet and what every conversation cost. It ships with its own evaluation suite, so you can prove it works before it talks to a guest.**
+**A multilingual AI ordering agent for small food businesses. It answers the website chat, takes preorders and pickup orders, handles allergy questions safely, and never sells more than the kitchen made. The owner gets a live dashboard with a prep list, a pickup sheet and what every conversation cost. It ships with its own evaluation suite, so you can prove it works before it talks to a guest.**
 
 It runs a pop-up from one config file:
 
@@ -17,12 +17,11 @@ It runs a pop-up from one config file:
 | | |
 |---|---|
 | **Takes preorders for a pop-up** | Offers only pickup windows with spots left, stops selling an item when the batch is gone, closes at the cutoff, and can attach a payment link |
-| **Books tables** | Checks real availability, offers alternatives when a slot is full, and never confirms a booking the system didn't confirm |
 | **Answers menu and allergy questions** | Only from the menu data, filters by allergen, warns about cross-contact, and says plainly when a dish doesn't exist |
 | **Takes pickup orders** | Validates every item against the menu and prices the order server-side |
 | **Speaks four languages** | English, Spanish, Russian and French |
 | **Escalates** | Refunds, complaints and large parties go to a human |
-| **Integrates** | Signed CRM webhooks for every booking, order and handoff |
+| **Integrates** | Signed CRM webhooks for every order and handoff |
 | **Shows the owner what happened** | `/admin`: revenue, conversion, prep list, per-window pickup sheet (printable), orders, full transcripts, handoffs, cost per conversation and per order, CSV export |
 | **Is safe to put on a public link** | Per-visitor rate limit, per-conversation cap and a daily model budget, after which it points guests to Instagram instead of spending more |
 | **Measures itself** | 33 scenario evals (8 red-team, 3 with simulated guests) graded on what actually ended up in the system, pass^k reliability across repeated runs, side-by-side model comparison, and an HTML report |
@@ -35,8 +34,8 @@ flowchart LR
   G[Guest] -->|web chat| API[Express API]
   API --> AG[Agent loop]
   AG <-->|tool use| LLM[Claude]
-  AG --> T[Tools, chosen per business mode]
-  T --> S[(Store: stock, windows, tables)]
+  AG --> T[Tools]
+  T --> S[(Store: stock, windows)]
   S --> L[(JSONL ledger)]
   API --> L
   L --> AD[Owner dashboard]
@@ -45,9 +44,9 @@ flowchart LR
 ```
 
 - **Agent loop** (`src/agent/agent.ts`): calls Claude with tool definitions, runs the tools it asks for, feeds results back, and stops after a bounded number of steps, handing off to a human instead of looping.
-- **Tools are the only source of truth** (`src/agent/tools.ts`). Validation lives in the tools, not the prompt: an unknown dish, a sold-out batch, a full pickup window or a full table comes back as a tool error the model has to deal with. A pop-up's model never even sees the reservation tools, and the server refuses them if it asks anyway.
+- **Tools are the only source of truth** (`src/agent/tools.ts`). Validation lives in the tools, not the prompt: an unknown dish, a sold-out batch or a full pickup window comes back as a tool error the model has to deal with. The server refuses any tool the model wasn't given, even if it asks.
 - **One config per business** (`data/restaurants/*.json`): menu with allergens and batch sizes, hours or pickup windows, cutoff, payment link, brand color and example prompts. `MISE_RESTAURANT` picks one.
-- **Ledger** (`src/ops/ledger.ts`): every order, booking and conversation turn (with tokens, cost and latency) is appended to a JSONL file and replayed on startup, so a restart can't lose orders or oversell a batch.
+- **Ledger** (`src/ops/ledger.ts`): every order and conversation turn (with tokens, cost and latency) is appended to a JSONL file and replayed on startup, so a restart can't lose orders or oversell a batch.
 - **Model-agnostic interface** (`src/llm/types.ts`): Claude in production, a deterministic mock for tests and CI.
 - **CRM webhooks** (`src/integrations/webhook.ts`): HMAC-SHA256 signatures, idempotency keys, exponential backoff on 5xx and 429, no retries on other 4xx.
 
@@ -135,11 +134,11 @@ MISE_RESTAURANT=ruki ADMIN_TOKEN=dev npm start   # the pop-up; dashboard at /adm
 
 ### Connect a CRM
 
-Set `CRM_WEBHOOK_URL` to any endpoint (a [Google Sheet](docs/google-sheets.md), a Zapier or Make catch hook, a HubSpot workflow, n8n, or webhook.site to watch events arrive) and `CRM_WEBHOOK_SECRET` to verify the `x-mise-signature` header. Events: `reservation.created`, `order.placed`, `handoff.requested`, each with an `id` to dedupe on.
+Set `CRM_WEBHOOK_URL` to any endpoint (a [Google Sheet](docs/google-sheets.md), a Zapier or Make catch hook, a HubSpot workflow, n8n, or webhook.site to watch events arrive) and `CRM_WEBHOOK_SECRET` to verify the `x-mise-signature` header. Events: `order.placed`, `handoff.requested`, each with an `id` to dedupe on.
 
 ## Design decisions
 
-- **Validation in tools, not prompts.** Prompts are suggestions to a model; tool code is a guarantee. The model can't book a full slot even if it tries.
+- **Validation in tools, not prompts.** Prompts are suggestions to a model; tool code is a guarantee. The model can't fill a full pickup window even if it tries.
 - **Fail toward a human.** Unknown requests, tool loops and model errors end in a handoff, never a made-up answer.
 - **Frozen clock for evals.** `MISE_TODAY` pins "today" so "tomorrow at 7" means the same thing in every run.
 - **Cheap to leave running.** A public link to an LLM is a bill waiting to happen. Rate limits, a conversation cap and a hard daily budget mean the worst case is a known number, and when it's hit guests get a human contact instead of an error.

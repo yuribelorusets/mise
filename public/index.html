@@ -54,13 +54,11 @@
   const day = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
   fetch("/api/config").then((r) => r.json()).then((c) => {
     document.title = `${c.name} · Mise`;
-    $("who").textContent = c.mode === "popup" ? `· preorders for ${c.name}` : `· front-of-house agent for ${c.name}`;
+    $("who").textContent = `· preorders for ${c.name}`;
     $("model").textContent = c.llm;
     if (c.accent) document.documentElement.style.setProperty("--accent", c.accent);
     if (c.draft) $("draft").style.display = "block";
-    $("hello").textContent = c.mode === "popup"
-      ? `Hi! I take preorders for ${c.name}${c.popup ? ` (${day(c.popup.eventDate)}, pickup ${c.popup.pickupWindows[0]}–${c.popup.pickupWindows.at(-1)})` : ""}. Ask about the menu or allergies, or tell me what you'd like. English, Русский, Українська, Español.`
-      : `Hi! I'm the host at ${c.name}. I can book a table, answer menu and allergy questions, or take a pickup order, in English, Español, Русский or Français.`;
+    $("hello").textContent = `Hi! I take preorders for ${c.name}${c.popup ? ` (${day(c.popup.eventDate)}, pickup ${c.popup.pickupWindows[0]}–${c.popup.pickupWindows.at(-1)})` : ""}. Ask about the menu or allergies, or tell me what you'd like. English, Русский, Українська, Español.`;
     for (const e of c.examples) { const b = document.createElement("button"); b.textContent = e; b.onclick = () => send(e); $("suggest").append(b); }
   }).catch(() => ($("model").textContent = "offline"));
 

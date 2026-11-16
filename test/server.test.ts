@@ -39,7 +39,7 @@ describe("http", () => {
   });
   it("serves branding for the chat page", async () => {
     const body = await (await fetch(`${base}/api/config`)).json();
-    expect(body).toMatchObject({ id: "ruki", mode: "popup", name: "Ruki" });
+    expect(body).toMatchObject({ id: "ruki", name: "Ruki" });
     expect(body.examples.length).toBeGreaterThan(0);
   });
   it("protects the owner dashboard and reports what happened", async () => {
@@ -94,7 +94,7 @@ describe("pop-up deployment", () => {
     await chat(app.url, "r", "10:30");
     const done = await (await chat(app.url, "r", "Anya, 510-555-0300")).json();
     app.close();
-    expect(cfg).toMatchObject({ mode: "popup", name: "Ruki", popup: { eventDate: "2026-12-05" } });
+    expect(cfg).toMatchObject({ name: "Ruki", popup: { eventDate: "2026-12-05" } });
     expect(done.reply).toMatch(/RK-[A-Z0-9]{6}/);
   });
 });

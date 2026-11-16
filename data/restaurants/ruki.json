@@ -2,7 +2,6 @@
   "id": "ruki",
   "draft": true,
   "_todo": "DRAFT: confirm menu, prices, quantities, event date, location, pickup windows and cutoff before going live. Remove \"draft\" when done.",
-  "mode": "popup",
   "name": "Ruki",
   "codePrefix": "RK",
   "city": "Oakland, CA",
@@ -27,9 +26,6 @@
     "orderCutoff": "2026-12-04T20:00:00-08:00",
     "paymentLink": ""
   },
-  "hours": { "open": "10:00", "close": "13:00", "closedDays": [] },
-  "seating": { "slotMinutes": 30, "tablesPerSlot": 0, "maxPartySize": 0 },
-  "pickup": { "leadMinutes": 0 },
   "menu": [
     {
       "id": "syrniki",
@@ -88,6 +84,5 @@
       "dietary": ["vegan", "gluten_free", "dairy_free"],
       "description": "Strong black tea served with a spoon of jam, the way grandma makes it."
     }
-  ],
-  "seedReservations": []
+  ]
 }

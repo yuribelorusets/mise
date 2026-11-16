@@ -18,7 +18,6 @@ export interface MenuItem {
 export interface RestaurantConfig {
   id: string;
   draft?: boolean;
-  mode: "restaurant" | "popup";
   name: string;
   codePrefix: string;
   city: string;
@@ -26,7 +25,7 @@ export interface RestaurantConfig {
   timezone: string;
   instagram?: string;
   brand?: { tagline?: string; accent?: string; examples?: string[] };
-  popup?: {
+  popup: {
     eventDate: string; // YYYY-MM-DD
     location: string;
     pickupWindows: string[]; // HH:MM
@@ -34,23 +33,7 @@ export interface RestaurantConfig {
     orderCutoff: string; // ISO datetime
     paymentLink?: string;
   };
-  hours: { open: string; close: string; closedDays: string[] };
-  seating: { slotMinutes: number; tablesPerSlot: number; maxPartySize: number };
-  pickup: { leadMinutes: number };
   menu: MenuItem[];
-  seedReservations: { date: string; time: string; tables: number }[];
-}
-
-export interface Reservation {
-  code: string;
-  name: string;
-  phone: string;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:MM, 24h
-  partySize: number;
-  notes?: string;
-  sessionId?: string;
-  createdAt?: string;
 }
 
 export interface Order {
@@ -76,11 +59,6 @@ export function loadRestaurant(id = process.env.MISE_RESTAURANT || "ruki"): Rest
 }
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const toMinutes = (t: string) => {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-};
-const fromMinutes = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
 
 /** HH:MM in a time zone. */
 export const localTime = (d: Date, timeZone = "America/Los_Angeles") =>
@@ -88,26 +66,19 @@ export const localTime = (d: Date, timeZone = "America/Los_Angeles") =>
 
 export const weekday = (date: string) => WEEKDAYS[new Date(`${date}T12:00:00Z`).getUTCDay()];
 
-/** Receives every booking and order so it can be saved; replays them on restart. */
+/** Receives every order so it can be saved; replays them on restart. */
 export interface Recorder {
-  record(kind: "reservation" | "order", value: Reservation | Order): void;
+  record(kind: "order", value: Order): void;
 }
 
-/** Restaurant state: bookings, orders and (for pop-ups) remaining stock. One instance per process or per eval scenario. */
+/** Pop-up state: orders and remaining stock. One instance per process or per eval scenario. */
 export class RestaurantStore {
-  private booked = new Map<string, number>(); // "date time" -> tables booked
-  readonly reservations: Reservation[] = [];
   readonly orders: Order[] = [];
 
   constructor(
     readonly config: RestaurantConfig = loadRestaurant(),
-    opts: { seed?: boolean; history?: { reservations?: Reservation[]; orders?: Order[] }; recorder?: Recorder } = {},
+    opts: { history?: { orders?: Order[] }; recorder?: Recorder } = {},
   ) {
-    if (opts.seed !== false) for (const s of config.seedReservations) this.booked.set(`${s.date} ${s.time}`, s.tables);
-    for (const r of opts.history?.reservations ?? []) {
-      this.reservations.push(r);
-      this.booked.set(`${r.date} ${r.time}`, (this.booked.get(`${r.date} ${r.time}`) ?? 0) + 1);
-    }
     for (const o of opts.history?.orders ?? []) this.orders.push(o);
     this.recorder = opts.recorder;
   }
@@ -143,61 +114,6 @@ export class RestaurantStore {
         return true;
       })
       .map((m) => ({ ...m, remaining: this.remaining(m.id), soldOut: this.remaining(m.id) === 0 }));
-  }
-
-  // ---------- reservations (restaurant mode) ----------
-
-  /** Why a slot can't be booked, or null if it can. */
-  slotProblem(date: string, time: string, partySize: number, now = new Date()): string | null {
-    const c = this.config;
-    if (c.mode === "popup") return "pickup_only";
-    if (!isRealDate(date) || !/^\d{2}:\d{2}$/.test(time)) return "invalid_format";
-    if (!Number.isInteger(partySize) || partySize < 1) return "invalid_party_size";
-    const today = localDate(now, c.timezone);
-    if (date < today || (date === today && toMinutes(time) <= toMinutes(localTime(now, c.timezone)))) return "in_the_past";
-    if (date > addDays(today, MAX_DAYS_AHEAD)) return "too_far_ahead";
-    if (c.hours.closedDays.includes(weekday(date))) return "closed_that_day";
-    const t = toMinutes(time);
-    if (t < toMinutes(c.hours.open) || t > toMinutes(c.hours.close) - 60) return "outside_hours";
-    if (t % c.seating.slotMinutes !== 0) return "not_a_slot";
-    if (partySize > c.seating.maxPartySize) return "party_too_large";
-    if ((this.booked.get(`${date} ${time}`) ?? 0) >= c.seating.tablesPerSlot) return "fully_booked";
-    return null;
-  }
-
-  checkAvailability(date: string, rawTime: string, partySize: number, now = new Date()) {
-    const time = normTime(rawTime);
-    const problem = this.slotProblem(date, time, partySize, now);
-    if (!problem) return { available: true as const, date, time, partySize };
-    const alternatives: string[] = [];
-    if (problem === "fully_booked" || problem === "not_a_slot") {
-      const t = toMinutes(time) - (toMinutes(time) % this.config.seating.slotMinutes);
-      for (const delta of [-30, 30, -60, 60, 90]) {
-        const alt = fromMinutes(t + delta);
-        if (!this.slotProblem(date, alt, partySize, now)) alternatives.push(alt);
-        if (alternatives.length === 3) break;
-      }
-    }
-    return { available: false as const, reason: problem, date, time, partySize, alternatives };
-  }
-
-  createReservation(r: Omit<Reservation, "code">, now = new Date()): Reservation & { duplicate?: boolean } {
-    const contact = checkContact(r.name, r.phone);
-    const time = normTime(r.time);
-    // The same conversation asking for the same table again is a repeat, not a second booking.
-    const dupe = r.sessionId && this.reservations.find((x) => x.sessionId === r.sessionId && x.date === r.date && x.time === time && digits(x.phone) === contact.phone);
-    if (dupe) return { ...dupe, duplicate: true };
-    const problem = this.slotProblem(r.date, time, r.partySize, now);
-    if (problem) throw new Error(`Cannot book ${r.date} ${time} for ${r.partySize}: ${problem}`);
-    const key = `${r.date} ${time}`;
-    this.booked.set(key, (this.booked.get(key) ?? 0) + 1);
-    const res: Reservation = {
-      ...r, time, name: contact.name, notes: clip(r.notes, 300),
-      code: `${this.config.codePrefix}-${randomUUID().slice(0, 6).toUpperCase()}`, createdAt: new Date().toISOString(),
-    };
-    this.reservations.push(res);
-    this.recorder?.record("reservation", res);
-    return res;
   }
 
   // ---------- pickup windows (pop-up mode) ----------
@@ -239,15 +155,10 @@ export class RestaurantStore {
       return { id: m.id, name: m.name, quantity, price: m.price };
     });
 
-    let pickupTime = o.pickupTime ? normTime(o.pickupTime) : undefined;
-    let pickupDate: string | undefined;
-    if (c.mode === "popup" && c.popup) {
-      if (now.getTime() > Date.parse(c.popup.orderCutoff)) throw new Error("Preorders are closed for this pop-up.");
-      if (!pickupTime) throw new Error(`Pick a pickup window: ${c.popup.pickupWindows.join(", ")}.`);
-      pickupDate = c.popup.eventDate;
-    } else {
-      pickupTime ??= localTime(new Date(now.getTime() + c.pickup.leadMinutes * 60_000), c.timezone);
-    }
+    const pickupTime = o.pickupTime ? normTime(o.pickupTime) : undefined;
+    if (now.getTime() > Date.parse(c.popup.orderCutoff)) throw new Error("Preorders are closed for this pop-up.");
+    if (!pickupTime) throw new Error(`Pick a pickup window: ${c.popup.pickupWindows.join(", ")}.`);
+    const pickupDate = c.popup.eventDate;
 
     // The same conversation placing the same order again (a repeated "yes", a retried tool call) gets the original back.
     const same = (x: Order) =>
@@ -256,14 +167,12 @@ export class RestaurantStore {
     const dupe = o.sessionId && this.orders.find((x) => same(x) && now.getTime() - Date.parse(x.createdAt ?? "0") < 60 * 60_000);
     if (dupe) return { ...dupe, duplicate: true };
 
-    if (c.mode === "popup" && c.popup) {
-      const w = this.windows(now).find((x) => x.time === pickupTime);
-      if (!w) throw new Error(`${pickupTime} isn't a pickup window. Windows: ${c.popup.pickupWindows.join(", ")}.`);
-      if (!w.open) throw new Error(`The ${pickupTime} window is full.`);
-    }
+    const w = this.windows(now).find((x) => x.time === pickupTime);
+    if (!w) throw new Error(`${pickupTime} isn't a pickup window. Windows: ${c.popup.pickupWindows.join(", ")}.`);
+    if (!w.open) throw new Error(`The ${pickupTime} window is full.`);
 
     const order: Order = {
-      id: `${c.mode === "popup" ? c.codePrefix : "ORD"}-${randomUUID().slice(0, 6).toUpperCase()}`,
+      id: `${c.codePrefix}-${randomUUID().slice(0, 6).toUpperCase()}`,
       name: contact.name,
       phone: o.phone.trim(),
       items: lines,
@@ -282,7 +191,6 @@ export class RestaurantStore {
 
 // ---------- validation helpers ----------
 
-const MAX_DAYS_AHEAD = 90;
 const digits = (s: string) => String(s ?? "").replace(/\D/g, "");
 const clip = (s: string | undefined, n: number) => (s?.trim() ? s.trim().slice(0, n) : undefined);
 
@@ -301,11 +209,5 @@ function checkContact(name: unknown, phone: unknown) {
   return { name: n, phone: p };
 }
 
-const isRealDate = (d: string) => {
-  if (typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
-  const t = Date.parse(`${d}T12:00:00Z`);
-  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === d;
-};
-const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 export const localDate = (d: Date, timeZone: string) =>
   new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);

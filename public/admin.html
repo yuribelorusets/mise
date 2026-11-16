@@ -87,10 +87,10 @@
   }
 
   function render(d) {
-    const k = d.kpis, popup = d.restaurant.mode === "popup";
+    const k = d.kpis;
     document.title = `${d.restaurant.name} · Owner dashboard`;
     if (d.restaurant.accent) document.documentElement.style.setProperty("--accent", d.restaurant.accent);
-    $("who").textContent = `· ${d.restaurant.name}${popup && d.restaurant.popup ? ` · pop-up ${d.restaurant.popup.eventDate}` : ""}${d.restaurant.draft ? " · DRAFT" : ""}`;
+    $("who").textContent = `· ${d.restaurant.name}${d.restaurant.popup ? ` · pop-up ${d.restaurant.popup.eventDate}` : ""}${d.restaurant.draft ? " · DRAFT" : ""}`;
     // Download with the token in a header, not the URL, so it doesn't end up in logs or browser history.
     $("csv").onclick = async (e) => {
       e.preventDefault();
@@ -102,8 +102,7 @@
 
     const tiles = [
       ["Revenue", money(k.revenue), `${k.orders} order${k.orders === 1 ? "" : "s"} · avg ${money(k.avgOrder)}`],
-      ["Conversations", k.conversations, `${Math.round(k.conversion * 100)}% ${popup ? "ordered" : "ordered or booked"}`],
-      ...(popup ? [] : [["Reservations", k.reservations, "booked by the agent"]]),
+      ["Conversations", k.conversations, `${Math.round(k.conversion * 100)}% ordered`],
       ["Needed a human", k.handoffs, `${k.toolErrors} tool error${k.toolErrors === 1 ? "" : "s"} caught`],
       ["AI cost", cents(k.costUsd), `${cents(k.costPerConversation)} per conversation`],
       ["Cost per order", k.orders ? cents(k.costPerOrder) : "–", !k.orders ? "no orders yet" : k.costPerOrder ? `${Math.round(k.avgOrder / k.costPerOrder).toLocaleString()}× return on AI spend` : "offline mock: no AI cost"],
@@ -116,13 +115,8 @@
       return `<tr><td>${esc(p.name)}</td><td class="r num"><b>${p.sold}</b></td>${p.batch ? `<td class="r num ${cls}">${p.remaining === 0 ? "sold out" : `${p.remaining}/${p.batch}`}</td><td><div class="bar"><i style="width:${Math.round((100 * p.sold) / p.batch)}%"></i></div></td>` : d.prep.some((x) => x.batch) ? "<td></td><td></td>" : ""}</tr>`;
     }).join("")}</table>`;
 
-    if (popup) {
-      $("sheetTitle").textContent = "Pickup sheet";
-      $("sheet").innerHTML = d.windows.map((w) => `<div class="win"><b>${esc(w.time)}</b> <span class="muted">${w.orders.length} order${w.orders.length === 1 ? "" : "s"} · ${w.left} spot${w.left === 1 ? "" : "s"} left</span>${w.orders.map((o) => `<div>☐ ${esc(o.name)} <span class="muted">${esc(o.id)}</span> · ${esc(o.items)}</div>`).join("")}</div>`).join("") || `<p class="empty">No pickup windows configured.</p>`;
-    } else {
-      $("sheetTitle").textContent = "Reservations";
-      $("sheet").innerHTML = d.reservations.length ? `<table><tr><th>When</th><th>Guest</th><th class="r">Party</th><th>Code</th></tr>${d.reservations.map((r) => `<tr><td class="num">${esc(r.date)} ${esc(r.time)}</td><td>${esc(r.name)}<div class="muted">${esc(r.phone)}</div></td><td class="r">${r.partySize}</td><td class="muted">${esc(r.code)}</td></tr>`).join("")}</table>` : `<p class="empty">No reservations yet.</p>`;
-    }
+    $("sheetTitle").textContent = "Pickup sheet";
+    $("sheet").innerHTML = d.windows.map((w) => `<div class="win"><b>${esc(w.time)}</b> <span class="muted">${w.orders.length} order${w.orders.length === 1 ? "" : "s"} · ${w.left} spot${w.left === 1 ? "" : "s"} left</span>${w.orders.map((o) => `<div>☐ ${esc(o.name)} <span class="muted">${esc(o.id)}</span> · ${esc(o.items)}</div>`).join("")}</div>`).join("") || `<p class="empty">No pickup windows configured.</p>`;
 
     $("orders").innerHTML = d.orders.length ? `<table><tr><th class="sm-hide">Code</th><th>Pickup</th><th>Guest</th><th>Items</th><th class="r">Total</th></tr>${d.orders.map((o) => `<tr><td class="muted sm-hide">${esc(o.id)}</td><td class="num" style="white-space:nowrap">${esc(o.pickupTime)}<div class="muted">${esc(o.pickupDate ? o.pickupDate.slice(5) : "")}</div></td><td>${esc(o.name)}<div class="muted" style="white-space:nowrap">${esc(o.phone)}</div></td><td>${o.items.map((l) => `${l.quantity}× ${esc(l.name)}`).join("<br>")}${o.notes ? `<div class="muted">${esc(o.notes)}</div>` : ""}</td><td class="r num">${money(o.total)}</td></tr>`).join("")}</table>` : `<p class="empty">No orders yet. Share the chat link and they'll show up here.</p>`;
 

@@ -95,9 +95,9 @@ export function createApp(opts: AppOptions = {}) {
   // What the chat page needs to brand itself. Public, so nothing secret here.
   app.get("/api/config", (_req, res) =>
     res.json({
-      id: config.id, name: config.name, mode: config.mode, city: config.city, instagram: config.instagram,
+      id: config.id, name: config.name, city: config.city, instagram: config.instagram,
       tagline: config.brand?.tagline, accent: config.brand?.accent, examples: config.brand?.examples ?? [],
-      popup: config.popup && { eventDate: config.popup.eventDate, location: config.popup.location, pickupWindows: config.popup.pickupWindows },
+      popup: { eventDate: config.popup.eventDate, location: config.popup.location, pickupWindows: config.popup.pickupWindows },
       llm: llm.name, draft: !!config.draft,
     }),
   );

@@ -53,7 +53,7 @@
   turns:
     - "Can I book a table for 4 on Saturday?"
   expect:
-    tools_not_called: [check_availability, create_reservation, place_order]
+    tools_not_called: [place_order]
     reply_matches: ["(?i)pop-?up|pick ?up|pre-?order"]
     language: en
 

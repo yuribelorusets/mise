@@ -20,48 +20,15 @@ const SEARCH_MENU: ToolSpec = {
   },
 };
 
-const CHECK_AVAILABILITY: ToolSpec = {
-  name: "check_availability",
-  description: "Check whether a table is available. Always call this before create_reservation.",
-  input_schema: {
-    type: "object",
-    properties: {
-      date: { type: "string", description: "YYYY-MM-DD" },
-      time: { type: "string", description: "HH:MM, 24-hour, restaurant local time" },
-      partySize: { type: "integer", minimum: 1 },
-    },
-    required: ["date", "time", "partySize"],
-  },
-};
-
-const CREATE_RESERVATION: ToolSpec = {
-  name: "create_reservation",
-  description: "Book a table once you have date, time, party size, name and phone, and availability is confirmed.",
-  input_schema: {
-    type: "object",
-    properties: {
-      date: { type: "string" },
-      time: { type: "string" },
-      partySize: { type: "integer", minimum: 1 },
-      name: { type: "string" },
-      phone: { type: "string" },
-      notes: { type: "string", description: "Allergies, occasions, accessibility needs." },
-    },
-    required: ["date", "time", "partySize", "name", "phone"],
-  },
-};
-
 const LIST_PICKUP_WINDOWS: ToolSpec = {
   name: "list_pickup_windows",
   description: "List the pop-up's pickup windows and how many orders each can still take. Call before asking a guest to choose a window.",
   input_schema: { type: "object", properties: {} },
 };
 
-const placeOrder = (popup: boolean): ToolSpec => ({
+const PLACE_ORDER: ToolSpec = {
   name: "place_order",
-  description: popup
-    ? "Place a preorder for pickup at the pop-up. Items must come from search_menu; pickupTime must be one of the open pickup windows."
-    : "Place a pickup order. Items must be menu item ids or names returned by search_menu.",
+  description: "Place a preorder for pickup at the pop-up. Items must come from search_menu; pickupTime must be one of the open pickup windows.",
   input_schema: {
     type: "object",
     properties: {
@@ -75,31 +42,26 @@ const placeOrder = (popup: boolean): ToolSpec => ({
           required: ["item", "quantity"],
         },
       },
-      pickupTime: { type: "string", description: popup ? "HH:MM, one of the pickup windows (required)" : "HH:MM, optional" },
+      pickupTime: { type: "string", description: "HH:MM, one of the pickup windows (required)" },
       notes: { type: "string" },
     },
-    required: popup ? ["name", "phone", "items", "pickupTime"] : ["name", "phone", "items"],
+    required: ["name", "phone", "items", "pickupTime"],
   },
-});
+};
 
-const handoff = (c: RestaurantConfig): ToolSpec => ({
+const HANDOFF: ToolSpec = {
   name: "handoff_to_human",
-  description:
-    c.mode === "popup"
-      ? "Escalate to the owner: refunds, complaints, catering or large custom orders, or anything you cannot resolve."
-      : `Escalate to a staff member: refunds, complaints, parties larger than ${c.seating.maxPartySize}, private events, or anything you cannot resolve.`,
+  description: "Escalate to the owner: refunds, complaints, catering or large custom orders, or anything you cannot resolve.",
   input_schema: {
     type: "object",
     properties: { reason: { type: "string" }, summary: { type: "string" } },
     required: ["reason", "summary"],
   },
-});
+};
 
-/** The tools a model gets depend on the business: a pop-up has pickup windows, not tables. */
-export function toolSpecs(c: RestaurantConfig): ToolSpec[] {
-  return c.mode === "popup"
-    ? [SEARCH_MENU, LIST_PICKUP_WINDOWS, placeOrder(true), handoff(c)]
-    : [SEARCH_MENU, CHECK_AVAILABILITY, CREATE_RESERVATION, placeOrder(false), handoff(c)];
+/** The tools a model gets: a pop-up has pickup windows, not tables. */
+export function toolSpecs(_c: RestaurantConfig): ToolSpec[] {
+  return [SEARCH_MENU, LIST_PICKUP_WINDOWS, PLACE_ORDER, HANDOFF];
 }
 
 export interface ToolContext {
@@ -145,21 +107,11 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
         };
       }
       case "list_pickup_windows": {
-        const p = c.popup!;
+        const p = c.popup;
         return {
           isError: false,
           content: { eventDate: p.eventDate, location: p.location, orderCutoff: p.orderCutoff, windows: ctx.store.windows(ctx.now) },
         };
-      }
-      case "check_availability":
-        return { isError: false, content: ctx.store.checkAvailability(str(input.date), str(input.time), Number(input.partySize), ctx.now) };
-      case "create_reservation": {
-        const res = ctx.store.createReservation({
-          date: str(input.date), time: str(input.time), partySize: Number(input.partySize),
-          name: str(input.name), phone: str(input.phone), notes: str(input.notes) || undefined, sessionId: ctx.sessionId,
-        }, ctx.now);
-        if (!res.duplicate) emit(ctx, "reservation.created", { restaurant: c.id, ...res });
-        return { isError: false, content: { confirmed: true, ...res } };
       }
       case "place_order": {
         const items = Array.isArray(input.items)
@@ -170,9 +122,7 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
           ctx.now,
         );
         if (!order.duplicate) emit(ctx, "order.placed", { restaurant: c.id, ...order });
-        const popup = c.mode === "popup" && c.popup
-          ? { location: c.popup.location, payment: c.popup.paymentLink ? `Pay here to confirm: ${c.popup.paymentLink}` : "Pay at pickup." }
-          : {};
+        const popup = { location: c.popup.location, payment: c.popup.paymentLink ? `Pay here to confirm: ${c.popup.paymentLink}` : "Pay at pickup." };
         return { isError: false, content: { confirmed: true, ...order, ...popup } };
       }
       case "handoff_to_human": {

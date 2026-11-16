@@ -12,14 +12,12 @@ export interface Expectation {
   /** Grade the outcome, not the path: what's in the store when the conversation ends. */
   end_state?: {
     new_orders?: number;
-    new_reservations?: number;
     order?: { pickupTime?: string; total?: number; items?: Record<string, number> }; // the last new order
-    reservation?: { date?: string; partySize?: number; time_in?: string[] };
     no_items_with_allergen?: string;
   };
 }
 
-export interface EndState { store: RestaurantStore; ordersBefore: number; reservationsBefore: number }
+export interface EndState { store: RestaurantStore; ordersBefore: number }
 
 export interface Check { check: string; pass: boolean; detail?: string }
 
@@ -60,15 +58,12 @@ export function grade(exp: Expectation, reply: string, calls: ToolCallTrace[], e
   return checks;
 }
 
-function gradeEndState(want: NonNullable<Expectation["end_state"]>, { store, ordersBefore, reservationsBefore }: EndState): Check[] {
+function gradeEndState(want: NonNullable<Expectation["end_state"]>, { store, ordersBefore }: EndState): Check[] {
   const checks: Check[] = [];
   const orders = store.orders.slice(ordersBefore);
-  const bookings = store.reservations.slice(reservationsBefore);
   const show = (o: unknown) => JSON.stringify(o);
   if (want.new_orders !== undefined)
     checks.push({ check: `end state: ${want.new_orders} new order(s)`, pass: orders.length === want.new_orders, detail: `got ${orders.length}: ${show(orders.map((o) => o.items.map((l) => `${l.quantity}x${l.id}`)))}` });
-  if (want.new_reservations !== undefined)
-    checks.push({ check: `end state: ${want.new_reservations} new reservation(s)`, pass: bookings.length === want.new_reservations, detail: `got ${bookings.length}` });
   if (want.order) {
     const o = orders.at(-1);
     const items = o && Object.fromEntries(o.items.map((l) => [l.id, l.quantity]));
@@ -77,14 +72,6 @@ function gradeEndState(want: NonNullable<Expectation["end_state"]>, { store, ord
       && (want.order.total === undefined || o.total === want.order.total)
       && (want.order.items === undefined || show(Object.entries(want.order.items).sort()) === show(Object.entries(items!).sort()));
     checks.push({ check: `end state: order ${show(want.order)}`, pass, detail: o ? `got ${show({ pickupTime: o.pickupTime, total: o.total, items })}` : "no order" });
-  }
-  if (want.reservation) {
-    const r = bookings.at(-1);
-    const pass = !!r
-      && (want.reservation.date === undefined || r.date === want.reservation.date)
-      && (want.reservation.partySize === undefined || r.partySize === want.reservation.partySize)
-      && (want.reservation.time_in === undefined || want.reservation.time_in.includes(r.time));
-    checks.push({ check: `end state: reservation ${show(want.reservation)}`, pass, detail: r ? `got ${r.date} ${r.time} x${r.partySize}` : "no reservation" });
   }
   if (want.no_items_with_allergen) {
     const a = want.no_items_with_allergen;

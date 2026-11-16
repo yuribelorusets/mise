@@ -37,7 +37,7 @@ export async function runScenario(s: Scenario, variant: { label: string; llm: st
   const webhook = new WebhookClient({ url: "", fallbackFile: null });
   const session = { id: `eval-${s.id}-${trial}`, messages: [] as never[] };
   for (const o of s.setup?.orders ?? []) store.placeOrder({ ...o, sessionId: "setup" }, now()); // e.g. a nearly sold-out batch
-  const before = { ordersBefore: store.orders.length, reservationsBefore: store.reservations.length };
+  const before = { ordersBefore: store.orders.length };
   const turns: ScenarioResult["turns"] = [];
   const flags: string[] = [];
   let tokens = 0;

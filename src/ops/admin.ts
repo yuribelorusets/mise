@@ -18,21 +18,19 @@ export function summary(config: RestaurantConfig, store: RestaurantStore, ledger
   const sessions = new Map<string, typeof turns>();
   for (const t of turns) sessions.set(t.sessionId, [...(sessions.get(t.sessionId) ?? []), t]);
   const ordered = new Set(turns.filter((t) => t.tools.some((x) => x.name === "place_order" && !x.isError)).map((t) => t.sessionId));
-  const booked = new Set(turns.filter((t) => t.tools.some((x) => x.name === "create_reservation" && !x.isError)).map((t) => t.sessionId));
   const revenue = store.orders.reduce((s, o) => s + o.total, 0);
   const cost = turns.reduce((s, t) => s + t.costUsd, 0);
   const round = (n: number, d = 4) => Math.round(n * 10 ** d) / 10 ** d;
 
   return {
-    restaurant: { id: config.id, name: config.name, mode: config.mode, draft: !!config.draft, accent: config.brand?.accent, popup: config.popup },
+    restaurant: { id: config.id, name: config.name, draft: !!config.draft, accent: config.brand?.accent, popup: config.popup },
     kpis: {
       conversations: sessions.size,
       messages: turns.length,
       orders: store.orders.length,
-      reservations: store.reservations.length,
       revenue,
       avgOrder: store.orders.length ? round(revenue / store.orders.length, 2) : 0,
-      conversion: sessions.size ? round((ordered.size + booked.size) / sessions.size, 3) : 0,
+      conversion: sessions.size ? round(ordered.size / sessions.size, 3) : 0,
       handoffs: turns.filter((t) => t.handoff).length,
       toolErrors: turns.reduce((s, t) => s + t.tools.filter((x) => x.isError).length, 0),
       costUsd: round(cost),
@@ -52,7 +50,6 @@ export function summary(config: RestaurantConfig, store: RestaurantStore, ledger
       orders: store.orders.filter((o) => o.pickupTime === w.time).map((o) => ({ id: o.id, name: o.name, items: o.items.map((l) => `${l.quantity}× ${l.name}`).join(", ") })),
     })),
     orders,
-    reservations: [...store.reservations].reverse(),
     handoffs: turns.filter((t) => t.handoff).reverse().slice(0, 50),
     conversations: [...sessions.entries()].reverse().slice(0, 30).map(([id, ts]) => ({
       id, channel: ts[0].channel, started: ts[0].at, ordered: ordered.has(id), handoff: ts.some((t) => t.handoff),

@@ -1,7 +1,7 @@
 import type { LLM, MessageParam, ToolResultBlock, ToolUseBlock } from "../llm/types.js";
 import { toolSpecs, runTool, type ToolContext } from "./tools.js";
 import { systemPrompt } from "./prompt.js";
-import type { Order, Reservation } from "../domain/restaurant.js";
+import type { Order } from "../domain/restaurant.js";
 
 export interface ToolCallTrace {
   name: string;
@@ -39,17 +39,15 @@ const HANDOFF_REPLY = "Sorry, I'm having trouble with that. Let me get a team me
 /** Confirmed side effects from this turn, for writing a reply in code when the model can't. */
 function confirmations(calls: ToolCallTrace[]) {
   return calls
-    .filter((c) => !c.isError && (c.name === "place_order" || c.name === "create_reservation"))
-    .map((c) => c.output as Partial<Order & Reservation> & { location?: string; payment?: string });
+    .filter((c) => !c.isError && (c.name === "place_order"))
+    .map((c) => c.output as Partial<Order> & { location?: string; payment?: string });
 }
 
 function confirmationReply(calls: ToolCallTrace[]): string | null {
   const done = confirmations(calls);
   if (!done.length) return null;
   return done
-    .map((o) => o.code
-      ? `Your table is booked: ${o.date} at ${o.time} for ${o.partySize}. Confirmation code ${o.code}.`
-      : `Your order ${o.id} is confirmed: pickup ${o.pickupDate ? `${o.pickupDate} ` : ""}at ${o.pickupTime}${o.location ? `, ${o.location}` : ""}. Total $${o.total}.${o.payment ? ` ${o.payment}` : ""}`)
+    .map((o) => `Your order ${o.id} is confirmed: pickup ${o.pickupDate ? `${o.pickupDate} ` : ""}at ${o.pickupTime}${o.location ? `, ${o.location}` : ""}. Total $${o.total}.${o.payment ? ` ${o.payment}` : ""}`)
     .join(" ");
 }
 
@@ -109,8 +107,8 @@ export async function runTurn(
     if (res.stop_reason !== "tool_use" || uses.length === 0) {
       let reply = res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
       const flags: string[] = [];
-      // Output check: any order or booking code the model mentions must be one the system issued.
-      const issued = new Set([...ctx.store.orders.map((o) => o.id), ...ctx.store.reservations.map((r) => r.code)]);
+      // Output check: any order code the model mentions must be one the system issued.
+      const issued = new Set(ctx.store.orders.map((o) => o.id));
       if ((reply.match(CODE) ?? []).some((c) => !issued.has(c))) {
         flags.push("unverified_code");
         console.warn(`[mise] blocked a reply with an order code the system didn't issue (session ${session.id})`);

@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { appendFile } from "node:fs/promises";
 
-export type MiseEventType = "reservation.created" | "order.placed" | "handoff.requested";
+export type MiseEventType = "order.placed" | "handoff.requested";
 
 export interface MiseEvent {
   id: string; // idempotency key: receivers should dedupe on this
