@@ -1447,3 +1447,189 @@ Graded on end state: what's on the proposals, what was written, what was offered
 - [ ] **Step 3:** Commit: `Add kitchen assistant eval scenarios`
 
 ---
+
+## Package F: screens on live data
+
+**Branch:** `feat/web-wired` · **Agent:** frontend-builder · **Owns:** `web/**`, `test/web-fixtures.test.ts` · **Starts after:** D is merged (E can still be open; they share no files)
+
+**Consumes:** D's routes and shapes (`TodayView`, `StockView`, `GuestPreorder`, `ProposalView`, `ConfirmResult`, `AssistantReply`, `NewItemOffer`, `Catalog`, `PlanResult`), `/api/owner/*`, and the `menu` and `privacyNotice` in `/api/config`. `apiGet`, `apiPost` and `ApiError` from `web/src/api/client.ts`.
+
+**Produces** (G uses these exact names): `web/src/api/types.ts`, `web/src/api/keys.ts` (`keys`), `web/src/api/hooks.ts` (the hooks below), `stockChanged(qc)`, `web/src/pages/SignIn.tsx`, `web/src/components/RequireOwner.tsx`.
+
+Rules for the whole package:
+- Pages read server data only through the hooks in `hooks.ts`, and the hooks only call `client.ts`. No `fetch` in a page or component.
+- The fixtures stay as test data, reshaped to the API's answers (`web/src/fixtures/` becomes what the fake API in tests returns). No page imports them.
+- No new runtime dependencies. Tests fake the API with `vi.stubGlobal("fetch", fakeApi(routes))`, a small helper in `web/src/test/fake-api.ts` that matches method and path and returns JSON.
+- The approved mockups are the look. Don't restyle; swap the data.
+- Add `apiDelete<T>(path)` to `client.ts` for the catalog delete. It's the only change to the client.
+
+### Task F1: Types, query keys, hooks and sign-in
+
+**Files:** Create `web/src/api/{types,keys,hooks}.ts`, `web/src/pages/SignIn.tsx` (and CSS), `web/src/components/RequireOwner.tsx`, `web/src/test/fake-api.ts`. Modify `web/src/main.tsx`, `web/src/App.tsx`, `web/src/api/client.ts`. Test: `web/src/api/hooks.test.tsx`.
+
+**Types.** `types.ts` re-exports the kitchen types with `export type { ... } from "../../../src/kitchen/types"`. That file has no imports, so it's safe for the web build. If `tsc -b` refuses a file outside `web/src` (the web `tsconfig` has `include: ["src"]` and no `rootDir`, so it shouldn't), copy the types instead. `TodayView`, `StockView`, `GuestPreorder` and the decorated `PlanResult` live in `src/kitchen/api.ts`, which imports Express, so copy those four with a comment naming where they come from.
+
+**Query keys.** Everything owner-side starts with `"kitchen"`, so a prefix can invalidate a group:
+
+```ts
+export const keys = {
+  owner: ["owner"] as const,
+  config: ["config"] as const,
+  catalog: ["kitchen", "catalog"] as const,
+  stock: ["kitchen", "stock"] as const,
+  history: (item: string) => ["kitchen", "stock", item, "history"] as const,
+  today: ["kitchen", "today"] as const,
+  plans: ["kitchen", "plans"] as const,
+  planResult: (id: string) => ["kitchen", "plans", id, "result"] as const,
+  cost: (item: string, qty: number, unit: string) => ["kitchen", "cost", item, qty, unit] as const,
+  maxBatch: (item: string, unit: string) => ["kitchen", "max-batch", item, unit] as const,
+  proposals: ["kitchen", "proposals"] as const,
+};
+```
+
+**Hooks.**
+
+| Hook | Key | Calls |
+|---|---|---|
+| `useOwner()` | `keys.owner` | `GET /api/owner/me`. A 401 resolves to `null` rather than throwing. |
+| `useSignIn()`, `useSignOut()` | mutations | `POST /api/owner/sign-in`, `POST /api/owner/sign-out` |
+| `usePublicConfig()` | `keys.config` | `GET /api/config` |
+| `useGuestChat()` | mutation | `POST /api/chat` |
+| `useCatalog()` | `keys.catalog` | `GET /api/kitchen/catalog` |
+| `useStock()` | `keys.stock` | `GET /api/kitchen/stock` |
+| `useItemHistory(item)` | `keys.history(item)` | `GET /api/kitchen/stock/:item/history` |
+| `useToday()` | `keys.today` | `GET /api/kitchen/today` |
+| `usePlans()` | `keys.plans` | `GET /api/kitchen/plans` |
+| `usePlanResult(id)` | `keys.planResult(id)` | `GET /api/kitchen/plans/:id/result` |
+| `useCost(item, qty, unit)` | `keys.cost(...)` | `GET /api/kitchen/cost` |
+| `useMaxBatch(item, unit)` | `keys.maxBatch(...)` | `GET /api/kitchen/max-batch` |
+| `useProposals()` | `keys.proposals` | `GET /api/kitchen/proposals` |
+| `useSaveCount()` | mutation | `POST /api/kitchen/counts`, with a `clientId` made once per save attempt and reused on retry |
+| `useSaveRecord(kind)`, `useDeleteRecord(kind)` | mutations | `POST` and `DELETE /api/kitchen/catalog/:kind` |
+| `useConfirmProposal()`, `useDiscardProposal()`, `useRefreshProposal()` | mutations | `POST /api/kitchen/proposals/:id/{confirm,discard,refresh}` |
+| `useAssistantTurn()` | mutation | `POST /api/kitchen/assistant` |
+
+**What gets invalidated:**
+- After a confirm or a count save, `stockChanged(qc)` invalidates `keys.stock` (and with it every item's history), `keys.today`, `keys.plans` (every plan result), `["kitchen", "cost"]`, `["kitchen", "max-batch"]` and `keys.proposals`, because a booking can make other open proposals stale. It doesn't touch `keys.catalog`. The confirm also writes the returned proposal into the `keys.proposals` cache with `setQueryData`, so the card turns to Booked without waiting for the refetch.
+- After a discard or a refresh, only `keys.proposals` (and the same `setQueryData`).
+- After a catalog save or delete, everything under `["kitchen"]`: a recipe or item change moves plans, costs and batch sizes.
+- After an assistant turn, `keys.proposals`, since the turn may have made some.
+- After sign-in, `keys.owner` and `["kitchen"]`. After sign-out, `qc.clear()`.
+
+**Signed out.** `main.tsx` builds the `QueryClient` with a `QueryCache` and `MutationCache` whose `onError` sets `keys.owner` to `null` on an `ApiError` with status 401, and sets `retry` to skip 401, 403, 404, 409 and 422. `RequireOwner` wraps the owner routes in `App.tsx`: while `useOwner()` is `null` it shows `SignIn` (a passcode field, a button, the server's error message, and the 429 message as it comes). `/order` is outside it.
+
+- [ ] **Step 1: Write the failing tests**
+
+```tsx
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
+import { AppRoutes } from "../App";
+import { fakeApi } from "../test/fake-api";
+import { makeQueryClient } from "../main";
+
+test("shows sign-in until the passcode is right, then the screen", async () => {
+  let signedIn = false;
+  vi.stubGlobal("fetch", fakeApi({
+    "GET /api/owner/me": () => (signedIn ? { owner: true } : { status: 401, error: "Sign in first." }),
+    "POST /api/owner/sign-in": (body) => ((signedIn = body.passcode === "syrniki-2026") ? { status: 204 } : { status: 401, error: "That passcode isn't right." }),
+    "GET /api/kitchen/today": () => todayView,
+  }));
+  render(<QueryClientProvider client={makeQueryClient()}><MemoryRouter initialEntries={["/"]}><AppRoutes /></MemoryRouter></QueryClientProvider>);
+  await userEvent.type(await screen.findByLabelText(/passcode/i), "wrong-one-x{Enter}");
+  expect(await screen.findByText("That passcode isn't right.")).toBeInTheDocument();
+  await userEvent.clear(screen.getByLabelText(/passcode/i));
+  await userEvent.type(screen.getByLabelText(/passcode/i), "syrniki-2026{Enter}");
+  expect(await screen.findByRole("heading", { level: 1, name: /today/i })).toBeInTheDocument();
+});
+
+test("a confirm refetches stock, today and proposals, but not the catalog", async () => {
+  const calls: string[] = [];
+  vi.stubGlobal("fetch", fakeApi({ "POST /api/kitchen/proposals/p-1/confirm": () => confirmResult }, calls));
+  const qc = makeQueryClient();
+  for (const k of [keys.catalog, keys.stock, keys.today, keys.proposals]) qc.setQueryData(k, {});
+  const spy = vi.spyOn(qc, "invalidateQueries");
+  // render a component that calls useConfirmProposal().mutate({ id: "p-1" })
+  await waitFor(() => expect(spy).toHaveBeenCalled());
+  const invalidated = spy.mock.calls.map(([f]) => JSON.stringify(f?.queryKey));
+  expect(invalidated).toEqual(expect.arrayContaining([JSON.stringify(keys.stock), JSON.stringify(keys.today), JSON.stringify(keys.proposals)]));
+  expect(invalidated).not.toContain(JSON.stringify(keys.catalog));
+});
+
+test("/order doesn't ask the guest to sign in", async () => {
+  vi.stubGlobal("fetch", fakeApi({ "GET /api/owner/me": () => ({ status: 401 }), "GET /api/config": () => publicConfig }));
+  render(<QueryClientProvider client={makeQueryClient()}><MemoryRouter initialEntries={["/order"]}><AppRoutes /></MemoryRouter></QueryClientProvider>);
+  expect(await screen.findByText(/syrniki/i)).toBeInTheDocument();
+  expect(screen.queryByLabelText(/passcode/i)).not.toBeInTheDocument();
+});
+```
+
+  Export `makeQueryClient()` from `main.tsx` (or a small `web/src/api/query-client.ts`, if importing `main.tsx` in a test renders the app) so tests get the same 401 handling.
+- [ ] **Step 2:** `npm run web:test`. Expected: FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4:** `npm run web:test && npm run web:build`. Expected: PASS.
+- [ ] **Step 5:** Commit: `Add query hooks for the kitchen API and an owner sign-in gate`
+
+### Task F2: Today and Count
+
+**Files:** `web/src/pages/{Today,Count}.tsx`, their tests, `web/src/fixtures/ruki.ts`, `test/web-fixtures.test.ts`.
+
+- [ ] **Step 1:** Change the page tests to render through the fake API instead of importing fixtures. In `web/src/fixtures/ruki.ts`, reshape `prepTasks` to `explode`'s output plus `recipeName` (recipe ids like `syrniki-batter`), and the preorders to `GuestPreorder` (`firstName`, `pickupTime`, `items: [{ name, quantity }]`). In `test/web-fixtures.test.ts`, change `it.fails` to `it`. New tests:
+  - Today shows the recipe *name* from `recipeName`, never the id (`syrniki-batter` doesn't appear).
+  - Today shows a preorder as its first name and pickup time, and says "No plan yet" when `plan` is `null`.
+  - Count starts each row at `lastCount` for that item and location, saves with one `POST /api/kitchen/counts` for the location, and a second tap on Save after a network error sends the same `clientId`.
+  - Count shows the server's 422 problem under the row it's about.
+- [ ] **Step 2:** `npm run web:test && npx vitest run test/web-fixtures.test.ts`. Expected: FAIL.
+- [ ] **Step 3: Implement.** Today: `useToday()` (with loading and error states the mockup's style already has). The prep checkboxes stay local, in `localStorage` under the plan id, since checking off prep isn't stock. Count: `useCatalog()` for locations and shelf order, `useStock()` for `lastCount`, `useSaveCount()` to save.
+- [ ] **Step 4:** Run them. Expected: PASS.
+- [ ] **Step 5:** Commit each page on its own: `Show Today from the kitchen API`, `Save counts through the kitchen API`
+
+### Task F3: Stock, Recipes and Plan
+
+**Files:** `web/src/pages/{Stock,Recipes,Plan}.tsx` and their tests, `web/src/fixtures/{items,stock,recipes,plans}.ts`.
+
+- [ ] **Step 1: Tests**, one set per page:
+  - Stock lists on-hand by location from `useStock()`, flags an item past `shelfLifeDays` since `lastReceived`, and opens an item's history from `useItemHistory(item)`.
+  - Recipes shows cost per batch from `useCost(recipe.makes, yield.qty, yield.unit)` and per plate from `useCost(recipe.makes, 1, <the item's first own unit>)`, lists `missing` prices by name, and saving sends the recipe to `POST /api/kitchen/catalog/recipes` and shows a 422's `errors` (a cycle, say).
+  - Plan lists plans by date from `usePlans()`, shows the prep and shopping lists from `usePlanResult(id)` with names, and saves a changed plan through `useSaveRecord("plans")`.
+- [ ] **Step 2:** Run them. Expected: FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4:** Run them, then `npm run web:build`. Expected: PASS.
+- [ ] **Step 5:** Commit each page on its own: `Show stock from the kitchen API`, `Edit recipes through the kitchen API`, `Edit production plans through the kitchen API`
+
+### Task F4: Proposal card and Assistant
+
+**Files:** `web/src/components/ProposalCard.tsx` (and CSS, test), `web/src/pages/Assistant.tsx` (and test), `web/src/fixtures/assistant.ts`.
+
+Card changes:
+- It takes a `ProposalView` and a `Catalog` instead of fixtures and an event count. Staleness is `proposal.stale` from the server, not `basedOn !== events`, because the server's rule only counts events for the proposal's items.
+- It shows `problems[i]` under line `i` and keeps Confirm disabled while any is set.
+- Confirm sends the edited lines. A 409 refetches `keys.proposals`, so the card turns stale, or shows Booked if another tab confirmed it first. A 422 shows the problems the server sent.
+- Discarded is a one-line stub, "Discarded · 2 lines", with the lines behind a disclosure (owner's decision: it stays as a stub).
+- Refresh calls `useRefreshProposal()` and keeps the same lines.
+
+Assistant page: messages live in component state and `sessionStorage` (the conversation is per tab; the server has its own copy), the session id is made once per tab, and each card reads its proposal from `useProposals()` by id, falling back to the copy that came with the message. An offer renders as "Add {name} ({baseUnit})"; Add sends `{ id: slug(name), name, aliases: [], baseUnit, units: {}, allergens: [] }` to `useSaveRecord("items")`, and the note under it says to repeat the change so it goes on a card. A failed turn shows the server's error and keeps the owner's text in the box.
+
+- [ ] **Step 1: Tests.**
+  - The card shows Stale and a Refresh button when `stale` is true; Refresh calls the refresh route and the card goes back to Confirm.
+  - Confirm sends the edited amount, then the card says Booked; a second click isn't possible.
+  - A 409 on confirm refetches proposals.
+  - A discarded proposal shows as a one-line stub.
+  - On the Assistant page, sending "two cases eggs" shows the reply and a card; an offer shows an Add button that posts the item.
+- [ ] **Step 2:** Run them. Expected: FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4:** Run them. Expected: PASS.
+- [ ] **Step 5:** Commit: `Drive proposal cards from the server's view`, then `Talk to the kitchen assistant from the Assistant screen`
+
+### Task F5: `/order`
+
+**Files:** `web/src/pages/Order.tsx` (and test), `web/src/fixtures/` as needed.
+
+- [ ] **Step 1: Tests.** The page shows the menu from `usePublicConfig()` with each item's price (owner's decision); it shows `privacyNotice` word for word, under the chat box where the guest types their name and phone; sending a message calls `POST /api/chat` with a session id made once per tab and shows the reply; a 429 shows the server's message.
+- [ ] **Step 2:** Run them. Expected: FAIL.
+- [ ] **Step 3: Implement.** The privacy text comes from the server, never from the page, so the retention days always match `MISE_RETAIN_DAYS`.
+- [ ] **Step 4:** `npm run web:test && npm run web:build`, then `npm run web:build && npm start` with `MISE_OWNER_PASSCODE` set, and check by reading the pages (`curl` or the tests, no browser): `/order` loads without signing in, `/` asks for the passcode.
+- [ ] **Step 5:** Commit: `Show the live menu, prices and privacy notice on /order`
+
+---
