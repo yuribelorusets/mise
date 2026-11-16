@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { explode } from "../../src/kitchen/plan.js";
+import { maxBatch } from "../../src/kitchen/cost.js";
 import type { PlanLine } from "../../src/kitchen/types.js";
 import { syrnikiCatalog as c } from "./fixtures.js";
 
@@ -39,6 +40,33 @@ describe("explode", () => {
     const r = explode(c, plan(10), { syrniki: 30 });
     expect(r.prep).toEqual([]);
     expect(r.shopping).toEqual([]);
+  });
+});
+
+describe("shopping rounding", () => {
+  const eggs = (qty: number) => explode(c, [{ item: "eggs", qty, unit: "each", source: "manual" }], {}).shopping[0];
+  it("rounds up to whole cases", () => {
+    expect(eggs(181).buyQty).toBe(2);
+    expect(eggs(360).buyQty).toBe(2);
+    expect(eggs(180).buyQty).toBe(1);
+  });
+  it("always buys at least one unit when there is a shortage", () => {
+    const line = eggs(1e-8);
+    expect(line.buy).toBeGreaterThan(0);
+    expect(line.buyQty).toBeGreaterThanOrEqual(1);
+  });
+  // Batter makes 3000 g from 1000 g cheese, so batches are thirds and the float error is real.
+  const thirds = structuredClone(c);
+  thirds.recipes[0].yield.qty = 3000;
+  thirds.recipes[0].components = [{ item: "cheese", qty: 1000, unit: "g" }];
+  it("sees no shortage when what's on hand exactly equals the need, even for huge plans", () => {
+    // n orders need 150 n g of batter, so 50 n g of cheese
+    fc.assert(fc.property(fc.integer({ min: 1, max: 50_000_000 }), (n) =>
+      explode(thirds, plan(n), { cheese: 50 * n }).shopping.length === 0), { numRuns: 2000 });
+    expect(explode(thirds, plan(1e7), { cheese: 5e8 }).shopping).toEqual([]);
+  });
+  it("max batch isn't one short because of float error", () => {
+    expect(maxBatch(thirds, { cheese: 5e8 }, "syrniki", "order", 20_000_000)).toBe(1e7);
   });
 });
 

@@ -24,7 +24,7 @@ export function explode(c: Catalog, lines: PlanLine[], available: Record<string,
     const take = Math.min(Math.max(pool[id] ?? 0, 0), qty);
     if (take > 0) { pool[id] -= take; uses[id] = (uses[id] ?? 0) + take; }
     const rest = qty - take;
-    if (rest <= 1e-9) return;
+    if (rest <= qty * 1e-9) return; // float error scales with the amount
     const recipe = recipeFor.get(id);
     if (!recipe) return void (short[id] = (short[id] ?? 0) + rest);
     if (inProgress.includes(id)) throw new Error(`Recipe cycle: ${[...inProgress, id].join(" -> ")}.`);
@@ -43,7 +43,7 @@ export function explode(c: Catalog, lines: PlanLine[], available: Record<string,
   const shopping = Object.entries(short).map(([id, buy]): ShoppingLine => {
     const line: ShoppingLine = { item: id, need: needed[id], have: Math.max(available[id] ?? 0, 0), buy };
     const pu = purchaseUnit(itemById(c, id));
-    return pu ? { ...line, buyUnit: pu[0], buyQty: Math.ceil(buy / pu[1] - 1e-9) } : line;
+    return pu ? { ...line, buyUnit: pu[0], buyQty: Math.max(1, Math.ceil((buy / pu[1]) * (1 - 1e-9))) } : line;
   });
   return { prep: [...prep.values()], shopping, uses };
 }
