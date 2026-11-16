@@ -8,6 +8,7 @@ export interface KitchenSession { id: string; messages: MessageParam[] }
 export type KitchenTurn = AssistantReply & { toolCalls: ToolCallTrace[] };
 
 const MAX_HISTORY = 40;
+const MAX_TOOL_CALLS = 12; // per turn
 export const UNREACHABLE = "The assistant can't reach the model right now. The count screen still works.";
 const GAVE_UP = "I couldn't finish that. Try asking a smaller question.";
 
@@ -58,7 +59,9 @@ export async function runKitchenTurn(llm: LLM, session: KitchenSession, text: st
     const results: ToolResultBlock[] = [];
     for (const use of uses) {
       const t0 = Date.now();
-      const out = runKitchenTool(use.name, use.input, ctx);
+      const out = toolCalls.length >= MAX_TOOL_CALLS
+        ? { content: { error: "Too many tool calls in one turn. Answer with what you have." }, isError: true }
+        : runKitchenTool(use.name, use.input, ctx);
       toolCalls.push({ name: use.name, input: use.input, output: out.content, isError: out.isError, ms: Date.now() - t0 });
       results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(out.content), is_error: out.isError || undefined });
     }

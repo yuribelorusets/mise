@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { LLM, LLMResponse } from "../../../src/llm/types.js";
 import { createKitchenAssistant } from "../../../src/kitchen/assistant/index.js";
+import { runKitchenTurn } from "../../../src/kitchen/assistant/loop.js";
 import { kitchenPrompt } from "../../../src/kitchen/assistant/prompt.js";
 import { ctx, ruki } from "./fixtures.js";
 
@@ -55,6 +56,37 @@ describe("kitchen assistant loop", () => {
     expect(r.proposals).toEqual([]);
     await a.turn("owner", "again");
     expect(seen[2]).toBe(1);
+  });
+
+  it("still returns the card when the model fails after proposing", async () => {
+    const c = ctx();
+    let calls = 0;
+    const llm: LLM = { name: "flaky", complete: async () => { if (calls++ === 1) throw new Error("529"); return tool("propose_stock_changes", { lines: [{ kind: "receive", item: "eggs", qty: 1, unit: "case" }] }); } };
+    const a = createKitchenAssistant({ store: c.store, proposals: c.proposals, llm });
+    const r = await a.turn("owner", "a case of eggs");
+    expect(r.reply).toMatch(/count screen/);
+    expect(r.proposals).toHaveLength(1);
+  });
+
+  it("books one card for the same lines proposed twice in a turn", async () => {
+    const c = ctx();
+    const lines = [{ kind: "receive", item: "eggs", qty: 1, unit: "case" }];
+    const a = createKitchenAssistant({ store: c.store, proposals: c.proposals, llm: scripted(
+      { content: [{ type: "tool_use", id: "a", name: "propose_stock_changes", input: { lines } }, { type: "tool_use", id: "b", name: "propose_stock_changes", input: { lines } }], stop_reason: "tool_use" },
+      text("On the card."),
+    ) });
+    const r = await a.turn("owner", "a case of eggs");
+    expect(r.proposals).toHaveLength(1);
+    expect(c.proposals.list("open")).toHaveLength(1);
+  });
+
+  it("caps the tool calls in one turn", async () => {
+    const c = ctx();
+    const many = { content: Array.from({ length: 8 }, (_, i) => ({ type: "tool_use" as const, id: `t${i}`, name: "on_hand", input: {} })), stop_reason: "tool_use" };
+    const r = await runKitchenTurn(scripted(many, many, text("done")), { id: "t", messages: [] }, "go", c);
+    expect(r.reply).toBe("done");
+    expect(r.toolCalls.filter((t) => !t.isError)).toHaveLength(12);
+    expect(r.toolCalls.filter((t) => t.isError)).toHaveLength(4);
   });
 
   it("puts the catalog and the no-guessing rule in the prompt", () => {

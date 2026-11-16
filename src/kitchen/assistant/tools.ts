@@ -4,7 +4,7 @@ import { batchCost, maxBatch } from "../cost.js";
 import { explode } from "../plan.js";
 import { onHand, totals } from "../stock.js";
 import { toBase } from "../units.js";
-import { ProposalError, type ProposalBook } from "../proposals.js";
+import { ProposalError, cleanLine, type ProposalBook } from "../proposals.js";
 import type { BaseUnit, Catalog, Item, KitchenStore, NewItemOffer, ProposalLine, ProposalView } from "../types.js";
 
 export interface KitchenToolContext {
@@ -222,6 +222,10 @@ function propose(input: Record<string, unknown>, ctx: KitchenToolContext): Kitch
     const why = unknown.length ? `Not in the catalog: ${unknown.join(", ")}. Offer to add them (offer_new_item).` : "";
     return fail([why, ...problems].filter(Boolean).join(" "), { problems, unknown });
   }
+  // The same lines twice in one turn would be two cards, and confirming both would book the stock twice.
+  const key = (ls: ProposalLine[]) => JSON.stringify(ls.map((l) => ({ ...cleanLine(l), raw: undefined })));
+  const dup = ctx.proposed.find((p) => key(p.lines) === key(lines));
+  if (dup) return fail(`Those lines are already on card ${dup.id} from this conversation turn. Don't propose them again.`);
   try {
     const view = ctx.proposals.create({ source: "chat", lines });
     ctx.proposed.push(view);
