@@ -11,9 +11,9 @@ AI kitchen tool for the Ruki pop-up, with guest preorders. TypeScript, Express, 
 
 ## Rules
 
-- Business rules (stock, windows, idempotency, date checks) live in `src/agent/tools.ts` and `src/domain/restaurant.ts`, not in the prompt.
+- Business rules live in code, not the prompt: `src/kitchen/` for stock, recipes and units, `src/domain/restaurant.ts` and `src/agent/tools.ts` for preorders.
 - Every bug fix comes with a test or eval scenario that failed before the fix.
-- Every scripted scenario in `evals/scenarios/` must pass on the mock, because `test/evals.test.ts` runs them in CI.
+- Every scripted scenario in `evals/scenarios/` must pass on the mock, because `test/evals.test.ts` runs them in CI. Scenarios tagged `live` need a real model and skip the mock.
 - Evals freeze "today" to 2026-12-04 (`MISE_TODAY`).
 - Keep diffs small: one concern per change.
 
