@@ -64,7 +64,7 @@ The history stays linear, and every commit on `main` passes the tests.
 |---|---|---|---|---|
 | A | Kitchen core: units, catalog checks, stock, netting, prep and shopping lists, cost, max batch, file store | `feat/kitchen-core` | builder | `src/kitchen/**` except `types.ts`, `test/kitchen/**`, `data/kitchens/**` |
 | B | Frontend shell, plus a static Today and Count mockup. ✋ Stops for owner approval of the look. | `feat/web-shell` | frontend-builder | `web/**`, `package.json`, `.github/workflows/ci.yml` |
-| C | Guardrails and eval tooling: per-phone preorder cap, data retention, privacy notice text, `live` tag, `--max-usd` | `feat/guardrails` | builder | `src/domain/restaurant.ts`, `src/ops/ledger.ts`, `src/ops/guardrails.ts`, `src/evals/run.ts`, `src/server.ts`, `data/restaurants/ruki.json`, `test/evals.test.ts`, `test/popup.test.ts`, `test/server.test.ts` |
+| C | Guardrails and eval tooling: per-phone preorder cap, data retention, privacy notice text, `live` tag, `--max-usd` | `feat/guardrails` | builder | `src/domain/restaurant.ts`, `src/ops/ledger.ts`, `src/ops/guardrails.ts`, `src/evals/run.ts`, `src/server.ts`, `data/restaurants/ruki.json`, `scripts/loadtest.ts`, `test/evals.test.ts`, `test/popup.test.ts`, `test/server.test.ts`, `test/robustness.test.ts` |
 
 None of these overlap. `src/kitchen/types.ts` is read-only during wave 1. A change to it goes through the orchestrator.
 

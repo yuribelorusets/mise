@@ -738,7 +738,7 @@ test("shows the prep list and what's short", () => {
 
 ## Package C: guardrails and eval tooling
 
-**Branch:** `feat/guardrails` · **Agent:** builder · **Owns:** `src/domain/restaurant.ts`, `src/ops/ledger.ts`, `src/ops/guardrails.ts`, `src/evals/run.ts`, `src/server.ts`, `data/restaurants/ruki.json`, `test/evals.test.ts`, `test/popup.test.ts`, `test/server.test.ts`
+**Branch:** `feat/guardrails` · **Agent:** builder · **Owns:** `src/domain/restaurant.ts`, `src/ops/ledger.ts`, `src/ops/guardrails.ts`, `src/evals/run.ts`, `src/server.ts`, `data/restaurants/ruki.json`, `scripts/loadtest.ts`, `test/evals.test.ts`, `test/popup.test.ts`, `test/server.test.ts`, `test/robustness.test.ts`
 
 ### Task C1: Per-phone and per-item preorder caps
 
