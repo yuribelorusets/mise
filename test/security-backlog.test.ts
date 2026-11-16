@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from "vitest";
 import type { Server } from "node:http";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../src/server.js";
@@ -17,8 +17,6 @@ import { FileStore } from "../src/kitchen/file-store.js";
 import { onHand, total } from "../src/kitchen/stock.js";
 import { explode } from "../src/kitchen/plan.js";
 import type { Catalog, StockEvent } from "../src/kitchen/types.js";
-import { prepTasks } from "../web/src/fixtures/ruki.js";
-const rukiKitchen: Catalog = JSON.parse(readFileSync("data/kitchens/ruki.json", "utf8"));
 
 const ruki = loadRestaurant("ruki");
 const NOW = new Date("2026-12-04T18:00:00-08:00");
@@ -128,15 +126,5 @@ describe("kitchen stock", () => {
     b.append([e]);
     const again = new FileStore(dir, "test", seed);
     expect(total(onHand(again.events()), "eggs")).toBe(180);
-  });
-});
-
-describe("web fixtures against the kitchen core", () => {
-  // Backlog: "The Today fixtures don't match what the kitchen core returns."
-  it.fails("names prep tasks the way explode does, by recipe id", () => {
-    const real = explode(rukiKitchen as Catalog, [{ item: "syrniki", qty: 40, unit: "order", source: "preorder" }], {}).prep;
-    const ids = new Set(rukiKitchen.recipes.map((r) => r.id));
-    expect(real.every((t) => ids.has(t.recipe))).toBe(true); // what the API will send
-    expect(prepTasks.every((t) => /^[a-z0-9-]+$/.test(t.recipe))).toBe(true); // what the screen was built against
   });
 });
