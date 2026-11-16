@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createApp, staticDir } from "../src/server.js";
 import { MockLLM } from "../src/llm/mock.js";
 import { WebhookClient } from "../src/integrations/webhook.js";
@@ -45,6 +48,10 @@ describe("http", () => {
     const body = await (await fetch(`${base}/api/config`)).json();
     expect(body).toMatchObject({ id: "ruki", name: "Ruki" });
     expect(body.examples.length).toBeGreaterThan(0);
+  });
+  it("tells guests what is kept, for how long, and who can read it", async () => {
+    const { privacyNotice } = await (await fetch(`${base}/api/config`)).json();
+    for (const word of [/name/, /phone/, /notes/, /chat/, /90 days/, /owner can read/]) expect(privacyNotice).toMatch(word);
   });
   it("protects the owner dashboard and reports what happened", async () => {
     expect((await fetch(`${base}/admin/api/summary`)).status).toBe(401);
@@ -108,7 +115,7 @@ describe("pop-up deployment", () => {
       const app = await start(createApp({ llm: new MockLLM(), webhook: new WebhookClient({ url: "", fallbackFile: null }) }));
       const cfg = await (await fetch(`${app.url}/api/config`)).json();
       app.close();
-      expect(cfg.privacyNotice).toMatch(/after 90 days/);
+      expect(cfg.privacyNotice).toMatch(/for 90 days/);
     }
     delete process.env.MISE_RETAIN_DAYS;
   });
@@ -120,6 +127,6 @@ describe("pop-up deployment", () => {
     app.close();
     delete process.env.MISE_RETAIN_DAYS;
     expect(cfg.privacyNotice).toMatch(/60 days/);
-    expect(cfg.privacyNotice).toMatch(/name and phone/i);
+    expect(cfg.privacyNotice).toMatch(/name, phone number/i);
   });
 });

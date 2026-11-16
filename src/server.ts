@@ -141,7 +141,7 @@ export function createApp(opts: AppOptions = {}) {
       tagline: config.brand?.tagline, accent: config.brand?.accent, examples: config.brand?.examples ?? [],
       popup: { eventDate: config.popup.eventDate, location: config.popup.location, pickupWindows: config.popup.pickupWindows },
       llm: llm.name, draft: !!config.draft,
-      privacyNotice: `We keep your name and phone number to prepare your order, and remove them after ${days} days. Chats are saved for the same time to improve the assistant.`,
+      privacyNotice: `We keep your name, phone number, order notes and what you write in this chat for ${days} days, then delete them. The owner can read them, to prepare your order and to improve the assistant.`,
     }),
   );
 
