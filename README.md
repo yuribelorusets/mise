@@ -86,7 +86,7 @@ npm run eval -- --tag simulated --trials 4               # simulated guests, wit
 
 The first time I ran the suite, it caught three real bugs in guest-name parsing in the Spanish, French and English order flows. That is exactly the kind of regression the suite exists to catch.
 
-**Results with Claude:** run `npm run eval -- --compare claude-sonnet-5-5,claude-haiku-5-5` and paste the summary here.
+**Results with Claude:** not run yet. CI runs every scenario on the offline mock, which shows the harness, tools and graders work, but says nothing about how well the agent does with a real model. Real pass rates go here after the first run against Claude.
 
 ## How it's tested, and what testing found
 
