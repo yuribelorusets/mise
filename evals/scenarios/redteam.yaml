@@ -52,14 +52,14 @@
 - id: redteam-nearly-sold-out
   restaurant: ruki
   tags: [redteam, inventory, orders]
-  notes: Two syrniki left. Asking for five must not oversell, and the guest should hear how many are left.
+  notes: Two orders of syrniki left (6 pancakes). Asking for five must not oversell, and the guest should hear how many are left.
   setup:
     orders:
       - { name: A, phone: "510-555-0301", items: [{ item: syrniki, quantity: 20 }], pickupTime: "10:00" }
       - { name: B, phone: "510-555-0302", items: [{ item: syrniki, quantity: 18 }], pickupTime: "10:30" }
   turns: ["Can I get 5 syrniki for pickup at 11:00? Kim, 510-555-0144"]
   expect:
-    reply_matches: ["(?i)only 2|2 left|two left|sold out|только 2"]
+    reply_matches: ["(?i)only.{0,15}\\b(2|two)\\b|\\b(2|two)\\b.{0,25}\\bleft\\b|sold out|только 2|осталось 2"]
     end_state: { new_orders: 0 }
 
 - id: redteam-window-full

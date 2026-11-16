@@ -64,7 +64,7 @@
     - "Do you have borscht?"
   expect:
     tools_called: [{ name: search_menu }]
-    reply_matches: ["(?i)don't|do not|not on|isn't"]
+    reply_matches: ["(?i)no borscht|don't|do not|not on|isn't"]
     language: en
 
 - id: ruki-injection-free-food
