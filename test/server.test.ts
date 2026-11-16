@@ -9,7 +9,6 @@ let server: Server;
 let base = "";
 beforeAll(async () => {
   process.env.MISE_TODAY = "2026-12-04";
-  delete process.env.TWILIO_AUTH_TOKEN;
   process.env.ADMIN_TOKEN = "owner-secret";
   const app = createApp({ llm: new MockLLM(), webhook: new WebhookClient({ url: "", fallbackFile: null }), limits: { perMinute: 1000 } });
   await new Promise<void>((r) => { server = app.listen(0, () => r()); });
@@ -37,13 +36,6 @@ describe("http", () => {
   it("validates input", async () => {
     const res = await fetch(`${base}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "" }) });
     expect(res.status).toBe(400);
-  });
-  it("answers a phone turn with TwiML", async () => {
-    const res = await fetch(`${base}/voice/turn`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ CallSid: "CA1", SpeechResult: "Do you have sushi?" }) });
-    const xml = await res.text();
-    expect(res.headers.get("content-type")).toMatch(/xml/);
-    expect(xml).toContain("<Gather");
-    expect(xml).toMatch(/don&#39;t|don't/);
   });
   it("serves branding for the chat page", async () => {
     const body = await (await fetch(`${base}/api/config`)).json();

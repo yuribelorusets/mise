@@ -3,7 +3,6 @@ import { createHmac } from "node:crypto";
 import { RestaurantStore } from "../src/domain/restaurant.js";
 import { runTool } from "../src/agent/tools.js";
 import { WebhookClient, sign } from "../src/integrations/webhook.js";
-import { validTwilioSignature, sayAndGather } from "../src/channels/twilio.js";
 import { subset, grade } from "../src/evals/graders.js";
 import { detectLang } from "../src/llm/lang.js";
 import { runTurn } from "../src/agent/agent.js";
@@ -64,20 +63,6 @@ describe("webhook", () => {
     const w = new WebhookClient({ url: "https://crm.example", baseDelayMs: 1, fetchImpl: async () => { calls++; return { ok: false, status: 400 }; } });
     expect((await w.send(w.build("order.placed", "s", "chat", {}))).delivered).toBe(false);
     expect(calls).toBe(1);
-  });
-});
-
-describe("twilio", () => {
-  const token = "12345", url = "https://mycompany.com/myapp.php?foo=1&bar=2";
-  const params = { CallSid: "CA1234567890ABCDE", Caller: "+12349013030", Digits: "1234", From: "+12349013030", To: "+18005551212" };
-  const good = createHmac("sha1", token).update(url + Object.keys(params).sort().map((k) => k + params[k as keyof typeof params]).join("")).digest("base64");
-  it("accepts a valid signature and rejects tampering", () => {
-    expect(validTwilioSignature(token, good, url, params)).toBe(true);
-    expect(validTwilioSignature(token, good, url, { ...params, Digits: "9999" })).toBe(false);
-    expect(validTwilioSignature(token, undefined, url, params)).toBe(false);
-  });
-  it("escapes text in TwiML", () => {
-    expect(sayAndGather("Fish & chips <3", "/voice/turn")).toContain("Fish &amp; chips &lt;3");
   });
 });
 

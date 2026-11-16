@@ -7,7 +7,7 @@ export class AnthropicLLM implements LLM {
   readonly name: string;
 
   constructor(private model = process.env.MISE_MODEL || "claude-sonnet-5-5", apiKey = process.env.ANTHROPIC_API_KEY) {
-    // The SDK's default timeout is 10 minutes. A guest won't wait that long, and Twilio gives up after 15 seconds.
+    // The SDK's default timeout is 10 minutes. A guest won't wait that long.
     this.client = new Anthropic({ apiKey, timeout: Number(process.env.MISE_LLM_TIMEOUT_MS ?? 30_000), maxRetries: 2 });
     this.name = `anthropic:${model}`;
   }

@@ -1,11 +1,11 @@
 # Mise
 
-**A multilingual AI ordering agent for small food businesses. It answers the website chat and the phone, takes preorders and pickup orders, books tables, handles allergy questions safely, and never sells more than the kitchen made. The owner gets a live dashboard with a prep list, a pickup sheet and what every conversation cost. It ships with its own evaluation suite, so you can prove it works before it talks to a guest.**
+**A multilingual AI ordering agent for small food businesses. It answers the website chat, takes preorders and pickup orders, books tables, handles allergy questions safely, and never sells more than the kitchen made. The owner gets a live dashboard with a prep list, a pickup sheet and what every conversation cost. It ships with its own evaluation suite, so you can prove it works before it talks to a guest.**
 
 It runs two kinds of business from one config file:
 
 - **[Ruki](data/restaurants/ruki.json)**, a real Ukrainian-Russian brunch pop-up that used to take preorders by hand over Instagram DMs. Pop-up mode: small batches that sell out, pickup windows with limited spots, a preorder cutoff, Russian-speaking regulars.
-- **[Fennel & Ash](data/restaurants/fennel-ash.json)**, a demo restaurant. Restaurant mode: table reservations, pickup orders and phone calls.
+- **[Fennel & Ash](data/restaurants/fennel-ash.json)**, a demo restaurant. Restaurant mode: table reservations and pickup orders.
 
 *Mise en place*: everything in its place before service starts. I spent years cooking in restaurants before becoming a software engineer, and I've watched hosts juggle a ringing phone, a full book and a guest asking about peanuts at the same time. Mise is the host I wish those restaurants had, built the way I'd want to ship an AI agent to a real customer: grounded in tools, safe by default, and measured.
 
@@ -21,11 +21,11 @@ It runs two kinds of business from one config file:
 | **Books tables** | Checks real availability, offers alternatives when a slot is full, and never confirms a booking the system didn't confirm |
 | **Answers menu and allergy questions** | Only from the menu data, filters by allergen, warns about cross-contact, and says plainly when a dish doesn't exist |
 | **Takes pickup orders** | Validates every item against the menu and prices the order server-side |
-| **Speaks four languages** | English, Spanish, Russian and French, on chat and on the phone |
-| **Escalates** | Refunds, complaints and large parties go to a human (phone calls transfer to the manager) |
-| **Integrates** | Twilio voice webhook, plus signed CRM webhooks for every booking, order and handoff |
+| **Speaks four languages** | English, Spanish, Russian and French |
+| **Escalates** | Refunds, complaints and large parties go to a human |
+| **Integrates** | Signed CRM webhooks for every booking, order and handoff |
 | **Shows the owner what happened** | `/admin`: revenue, conversion, prep list, per-window pickup sheet (printable), orders, full transcripts, handoffs, cost per conversation and per order, CSV export |
-| **Is safe to put on a public link** | Per-visitor rate limit, per-conversation cap and a daily model budget, after which it points guests to Instagram or the phone instead of spending more |
+| **Is safe to put on a public link** | Per-visitor rate limit, per-conversation cap and a daily model budget, after which it points guests to Instagram instead of spending more |
 | **Measures itself** | 33 scenario evals (8 red-team, 3 with simulated guests) graded on what actually ended up in the system, pass^k reliability across repeated runs, side-by-side model comparison, and an HTML report |
 | **Survives being attacked** | 108 tests including fault injection, concurrency, property-based invariants and fuzzing, plus a load test of 1,500 simultaneous guests |
 
@@ -34,7 +34,6 @@ It runs two kinds of business from one config file:
 ```mermaid
 flowchart LR
   G[Guest] -->|web chat| API[Express API]
-  G -->|phone call| TW[Twilio voice] -->|signed webhook| API
   API --> AG[Agent loop]
   AG <-->|tool use| LLM[Claude]
   AG --> T[Tools, chosen per business mode]
@@ -52,7 +51,6 @@ flowchart LR
 - **Ledger** (`src/ops/ledger.ts`): every order, booking and conversation turn (with tokens, cost and latency) is appended to a JSONL file and replayed on startup, so a restart can't lose orders or oversell a batch.
 - **Model-agnostic interface** (`src/llm/types.ts`): Claude in production, a deterministic mock for tests and CI.
 - **CRM webhooks** (`src/integrations/webhook.ts`): HMAC-SHA256 signatures, idempotency keys, exponential backoff on 5xx and 429, no retries on other 4xx.
-- **Voice** (`src/channels/twilio.ts`): validates Twilio's request signature, answers with TwiML speech gathering in the caller's language, and dials the manager on handoff.
 
 ## Evals
 
@@ -136,12 +134,6 @@ MISE_RESTAURANT=ruki ADMIN_TOKEN=dev npm start   # the pop-up; dashboard at /adm
 
 **What it costs to run:** a preorder conversation is a handful of turns, each one a model call or two with the menu and tools in context, which works out to a few cents on Sonnet and well under a cent on Haiku. The dashboard shows the real number per conversation and per order. `MISE_DAILY_BUDGET_USD` caps the worst case.
 
-### Put it on a phone number
-
-1. Deploy (any Node host; `render.yaml` is included for Render).
-2. Buy a Twilio number and set its voice webhook to `POST https://<your-app>/voice/incoming`.
-3. Set `TWILIO_AUTH_TOKEN`, `PUBLIC_BASE_URL` and `MANAGER_PHONE`.
-
 ### Connect a CRM
 
 Set `CRM_WEBHOOK_URL` to any endpoint (a [Google Sheet](docs/google-sheets.md), a Zapier or Make catch hook, a HubSpot workflow, n8n, or webhook.site to watch events arrive) and `CRM_WEBHOOK_SECRET` to verify the `x-mise-signature` header. Events: `reservation.created`, `order.placed`, `handoff.requested`, each with an `id` to dedupe on.
@@ -157,8 +149,7 @@ Set `CRM_WEBHOOK_URL` to any endpoint (a [Google Sheet](docs/google-sheets.md), 
 
 ## Roadmap
 
-- Streaming voice with lower latency (Twilio Media Streams)
-- Real POS and reservation integrations (Toast, OpenTable, Resy)
+- Real POS integrations (Toast)
 - Evals generated from anonymized real call transcripts
 - Stripe Checkout so preorders are paid before they count against a batch
 - Instagram DM channel (the Meta Messaging API) so guests can order where they already message

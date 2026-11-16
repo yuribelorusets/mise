@@ -5,8 +5,6 @@ import { loadRestaurant, RestaurantStore, type RestaurantConfig } from "./domain
 import { WebhookClient } from "./integrations/webhook.js";
 import { runTurn, type Session } from "./agent/agent.js";
 import { makeLLM, now } from "./config.js";
-import { detectLang } from "./llm/lang.js";
-import { validTwilioSignature, sayAndGather, sayAndDial } from "./channels/twilio.js";
 import { Ledger } from "./ops/ledger.js";
 import { costUsd } from "./ops/pricing.js";
 import { RateLimiter, limitsFromEnv, type Limits } from "./ops/guardrails.js";
@@ -58,7 +56,7 @@ export function createApp(opts: AppOptions = {}) {
   const contact = config.instagram ? `message us on Instagram (${config.instagram})` : config.phone ? `call us at ${config.phone}` : "contact us directly";
 
   /** Runs a turn with the guardrails, and logs it with its cost. */
-  async function guardedTurn(s: Session, text: string, channel: "chat" | "voice") {
+  async function guardedTurn(s: Session, text: string, channel: "chat") {
     const t0 = Date.now();
     let turn;
     if (userTurns(s) >= limits.turnsPerSession) {
@@ -116,35 +114,6 @@ export function createApp(opts: AppOptions = {}) {
     } catch (err) {
       console.error(err);
       res.status(502).json({ error: "The model is unavailable right now." });
-    }
-  });
-
-  // Twilio voice: incoming call -> greeting -> speech turns
-  const twilioGuard: express.RequestHandler = (req, res, next) => {
-    const token = process.env.TWILIO_AUTH_TOKEN;
-    if (!token) return next(); // local development
-    const url = `${process.env.PUBLIC_BASE_URL ?? ""}${req.originalUrl}`;
-    if (!validTwilioSignature(token, req.header("x-twilio-signature"), url, req.body ?? {})) return res.status(403).send("Invalid signature");
-    next();
-  };
-
-  app.post("/voice/incoming", twilioGuard, (_req, res) => {
-    res.type("text/xml").send(sayAndGather(`Thanks for calling ${config.name.replace(/&/g, "and")}. How can I help you today?`, "/voice/turn"));
-  });
-
-  app.post("/voice/turn", twilioGuard, async (req, res) => {
-    const callSid = String(req.body?.CallSid ?? "unknown");
-    const speech = String(req.body?.SpeechResult ?? "").trim();
-    if (!speech) return res.type("text/xml").send(sayAndGather("Sorry, I didn't catch that. Could you say it again?", "/voice/turn"));
-    const lang = detectLang(speech);
-    const phone = process.env.MANAGER_PHONE;
-    try {
-      const s = session(`call:${callSid}`);
-      const turn = await serialized(s, () => guardedTurn(s, speech, "voice"));
-      res.type("text/xml").send(turn.handoff && phone ? sayAndDial(turn.reply, phone, lang) : sayAndGather(turn.reply, "/voice/turn", lang));
-    } catch (err) {
-      console.error(err);
-      res.type("text/xml").send(phone ? sayAndDial("Let me connect you with a team member.", phone) : sayAndGather("Sorry, something went wrong. Could you try again?", "/voice/turn"));
     }
   });
 

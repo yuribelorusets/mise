@@ -8,7 +8,7 @@ export interface MiseEvent {
   type: MiseEventType;
   occurredAt: string;
   sessionId: string;
-  channel: "chat" | "voice" | "eval";
+  channel: "chat" | "eval";
   data: Record<string, unknown>;
 }
 
