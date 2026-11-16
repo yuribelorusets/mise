@@ -99,6 +99,42 @@ export interface Proposal {
   status: "open" | "confirmed" | "discarded";
   /** Number of stock events when the proposal was made, so a confirm can tell it's stale. */
   basedOn: number;
+  confirmedAt?: string;
+  discardedAt?: string;
+  /** Ids of the stock events the confirm wrote. */
+  events?: string[];
+}
+
+/** A proposal as the API and the assistant return it. `stale` and `problems` are worked out when it's read. */
+export interface ProposalView extends Proposal {
+  /** Stock for one of its items changed after it was made. It can't be booked until it's refreshed. */
+  stale: boolean;
+  /** One entry per line: why it can't be booked as it stands, or null. */
+  problems: (string | null)[];
+}
+
+export interface ConfirmResult {
+  proposal: ProposalView;
+  events: string[];
+}
+
+/** The assistant met a name it doesn't know and offers to add it. Nothing is written until the owner says yes. */
+export interface NewItemOffer {
+  name: string;
+  baseUnit: BaseUnit;
+  raw?: string;
+}
+
+export interface AssistantReply {
+  reply: string;
+  proposals: ProposalView[];
+  offers: NewItemOffer[];
+  model: string;
+  usage: { input_tokens: number; output_tokens: number };
+}
+
+export interface KitchenAssistant {
+  turn(sessionId: string, text: string): Promise<AssistantReply>;
 }
 
 export interface KitchenStore {
