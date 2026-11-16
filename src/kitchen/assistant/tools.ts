@@ -4,8 +4,8 @@ import { batchCost, maxBatch } from "../cost.js";
 import { explode } from "../plan.js";
 import { onHand, totals } from "../stock.js";
 import { toBase } from "../units.js";
-import type { ProposalBook } from "../proposals.js";
-import type { Catalog, Item, KitchenStore, NewItemOffer, ProposalView } from "../types.js";
+import { ProposalError, type ProposalBook } from "../proposals.js";
+import type { BaseUnit, Catalog, Item, KitchenStore, NewItemOffer, ProposalLine, ProposalView } from "../types.js";
 
 export interface KitchenToolContext {
   store: KitchenStore;
@@ -189,11 +189,75 @@ function readTool(name: string, input: Record<string, unknown>, ctx: KitchenTool
   return fail(`Unknown tool "${name}".`);
 }
 
+function propose(input: Record<string, unknown>, ctx: KitchenToolContext): KitchenToolResult {
+  const c = ctx.store.catalog();
+  if (!Array.isArray(input.lines) || !input.lines.length) throw new ToolError("Give at least one line.");
+  const lines: ProposalLine[] = [];
+  const items: Item[] = [];
+  const unknown: string[] = [];
+  const problems: string[] = [];
+  for (const raw of input.lines as unknown[]) {
+    if (typeof raw !== "object" || raw === null) { problems.push("A line is empty."); continue; }
+    const l = raw as Record<string, unknown>;
+    const name = typeof l.item === "string" ? l.item.trim() : "";
+    const item = name ? (c.items.find((i) => i.id === name) ?? findItem(c, name)) : undefined;
+    if (!item) { unknown.push(String(l.item)); continue; }
+    const place = (v: unknown) => {
+      const q = String(v).trim().toLowerCase();
+      return c.locations.find((x) => x.id === q || x.name.toLowerCase() === q)?.id ?? String(v);
+    };
+    const location = l.location !== undefined ? place(l.location) : c.locations.find((x) => x.shelfOrder.includes(item.id))?.id;
+    if (!location) { problems.push(`${item.name} has no usual shelf. Ask the owner where it goes.`); continue; }
+    items.push(item);
+    lines.push({
+      kind: l.kind as ProposalLine["kind"], item: item.id, location, qty: l.qty as number, unit: l.unit as string,
+      ...(l.to !== undefined ? { to: place(l.to) } : {}),
+      ...(l.unitCost !== undefined ? { unitCost: l.unitCost as number } : {}),
+      ...(typeof l.raw === "string" ? { raw: l.raw } : {}),
+    });
+  }
+  if (unknown.length || problems.length) {
+    const why = unknown.length ? `Not in the catalog: ${unknown.join(", ")}. Offer to add them (offer_new_item).` : "";
+    return fail([why, ...problems].filter(Boolean).join(" "), { problems, unknown });
+  }
+  try {
+    const view = ctx.proposals.create({ source: "chat", lines });
+    ctx.proposed.push(view);
+    return ok({
+      proposal: view.id,
+      lines: view.lines.map((l, n) => ({
+        kind: l.kind, name: items[n].name, qty: l.qty, unit: l.unit, base: toBase(items[n], l.qty, l.unit), baseUnit: items[n].baseUnit,
+        location: l.location,
+      })),
+      booked: false,
+      note: "Not booked. The owner checks the card and confirms it.",
+    });
+  } catch (e) {
+    if (e instanceof ProposalError) return fail(e.message, { problems: e.problems.filter(Boolean), unknown: [] });
+    throw e;
+  }
+}
+
+function offer(input: Record<string, unknown>, ctx: KitchenToolContext): KitchenToolResult {
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  if (!name || name.length > 60) throw new ToolError("An item name must be 1 to 60 characters.");
+  if (input.baseUnit !== "g" && input.baseUnit !== "ml" && input.baseUnit !== "each") throw new ToolError(`The base unit must be g, ml or each, not "${String(input.baseUnit)}". Use g for weight, ml for volume, each for pieces.`);
+  const c = ctx.store.catalog();
+  const known = c.items.find((i) => i.id === name) ?? findItem(c, name);
+  if (known) throw new ToolError(`${known.name} is already in the catalog as "${known.id}". Use that.`);
+  if (ctx.offers.some((o) => o.name.toLowerCase() === name.toLowerCase())) throw new ToolError(`${name} is already offered.`);
+  if (ctx.offers.length >= 5) throw new ToolError("That's enough new items for one message. Ask the owner to deal with these first.");
+  const o: NewItemOffer = { name, baseUnit: input.baseUnit as BaseUnit, ...(typeof input.raw === "string" ? { raw: input.raw.slice(0, 200) } : {}) };
+  ctx.offers.push(o);
+  return ok({ offered: true, added: false, note: "Nothing is added until the owner taps Add." });
+}
+
 export function runKitchenTool(name: string, input: Record<string, unknown>, ctx: KitchenToolContext): KitchenToolResult {
   if (!KITCHEN_TOOLS.some((t) => t.name === name)) return fail(`Unknown tool "${name}".`);
   if (typeof input !== "object" || input === null || Array.isArray(input)) return fail("The tool input must be an object.");
   try {
-    if (name === "propose_stock_changes" || name === "offer_new_item") return fail("This tool isn't available yet.");
+    if (name === "propose_stock_changes") return propose(input, ctx);
+    if (name === "offer_new_item") return offer(input, ctx);
     return readTool(name, input, ctx);
   } catch (e) {
     // Unit and recipe errors carry sentences the model can repeat.
