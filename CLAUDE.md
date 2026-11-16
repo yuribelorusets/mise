@@ -22,5 +22,7 @@ AI kitchen tool for the Ruki pop-up, with guest preorders. TypeScript, Express, 
 - Commit each logical change on its own, when it's done. No catch-all commits.
 - Subject: short, imperative, plain ("Reject orders for zero items"). Add a body only when the reason isn't obvious, and keep it to a sentence or two.
 - No bullet-list bodies, test counts or summary lines.
+- If a change alters behavior described in `docs/` or the README, say which doc in your report. The documenter agent updates docs after each wave.
+- A new design decision gets a record in `docs/decisions/`.
 - Docs read like a person wrote them: plain and specific, no marketing tone.
 - No `Co-Authored-By` or `Claude-Session` lines. Claude is credited once, in the README. The `.githooks/commit-msg` hook enforces this.
