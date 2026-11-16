@@ -28,9 +28,12 @@ export const staticDir = (exists: (p: string) => boolean = existsSync) => (exist
 const MAX_SESSIONS = 2000;
 const SESSION_IDLE_MS = 3 * 60 * 60_000; // forget a conversation after 3 idle hours (it's still in the ledger)
 
+const retainDays = () => Number(process.env.MISE_RETAIN_DAYS ?? 90);
+
 export function createApp(opts: AppOptions = {}) {
   const config = opts.config ?? opts.store?.config ?? loadRestaurant();
   const ledger = opts.ledger ?? new Ledger(process.env.DATA_DIR, config.id);
+  if (ledger.persistent) ledger.compact(new Date(), retainDays());
   const store = opts.store ?? new RestaurantStore(config, { history: ledger, recorder: ledger });
   const llm = opts.llm ?? makeLLM(undefined, undefined, config);
   const webhook = opts.webhook ?? new WebhookClient();

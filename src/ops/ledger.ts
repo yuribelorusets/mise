@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Order, Recorder } from "../domain/restaurant.js";
 
@@ -32,6 +32,7 @@ export class Ledger implements Recorder {
   readonly orders: Order[] = [];
   readonly turns: TurnLog[] = [];
   private file?: string;
+  private entries: Entry[] = [];
 
   constructor(dir: string | undefined, restaurantId: string) {
     if (!dir) return;
@@ -43,12 +44,35 @@ export class Ledger implements Recorder {
       try {
         const e = JSON.parse(line) as Entry;
         // Lines of any other kind (old table-booking entries) are skipped.
-        if (e.kind === "order") this.orders.push(e.value);
-        else if (e.kind === "turn") this.turns.push(e.value);
+        if (e.kind === "order" || e.kind === "turn") this.entries.push(e);
       } catch {
         // a torn last line after a crash: skip it rather than refuse to start
       }
     }
+    this.load();
+  }
+
+  private load() {
+    this.orders.length = 0;
+    this.turns.length = 0;
+    for (const e of this.entries) {
+      if (e.kind === "order") this.orders.push(e.value);
+      else this.turns.push(e.value);
+    }
+  }
+
+  /** Drop chats older than `retainDays` and strip name and phone from older orders (kept for totals). */
+  compact(now: Date, retainDays: number) {
+    if (!this.file) return;
+    const cutoff = now.getTime() - retainDays * 86_400_000;
+    const old = (e: Entry) => Date.parse(e.at) < cutoff;
+    this.entries = this.entries
+      .filter((e) => !(e.kind === "turn" && old(e)))
+      .map((e) => (e.kind === "order" && old(e) ? { ...e, value: { ...e.value, name: "[removed]", phone: "" } } : e));
+    const tmp = `${this.file}.tmp`;
+    writeFileSync(tmp, this.entries.map((e) => JSON.stringify(e) + "\n").join(""));
+    renameSync(tmp, this.file);
+    this.load();
   }
 
   get persistent() {
@@ -56,7 +80,9 @@ export class Ledger implements Recorder {
   }
 
   private write(e: Entry) {
-    if (this.file) appendFileSync(this.file, JSON.stringify(e) + "\n");
+    if (!this.file) return;
+    this.entries.push(e);
+    appendFileSync(this.file, JSON.stringify(e) + "\n");
   }
 
   /** Called by RestaurantStore. The store keeps its own copy, so only persist here. */

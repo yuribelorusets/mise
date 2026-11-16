@@ -109,6 +109,25 @@ describe("ledger", () => {
     expect(ledger.orders).toHaveLength(1);
   });
 
+  it("drops old chats and removes names and phones from old orders", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mise-"));
+    const now = new Date("2026-12-04T18:00:00-08:00");
+    const old = "2026-08-01T00:00:00Z", recent = "2026-12-01T00:00:00Z";
+    const line = (o: object) => JSON.stringify(o) + "\n";
+    appendFileSync(join(dir, "ruki.jsonl"),
+      line({ kind: "turn", at: old, value: { at: old, sessionId: "a", user: "hi", reply: "hello" } }) +
+      line({ kind: "turn", at: recent, value: { at: recent, sessionId: "b", user: "hi", reply: "hello" } }) +
+      line({ kind: "reservation", at: recent, value: { code: "FA-ABC123" } }) +
+      line({ kind: "order", at: old, value: { id: "RK-OLD001", name: "Anya", phone: "510-555-0100", items: [], total: 12 } }));
+    new Ledger(dir, "ruki").compact(now, 90);
+    const after = new Ledger(dir, "ruki");
+    expect(after.turns.map((t) => t.sessionId)).toEqual(["b"]);
+    expect(after.orders[0]).toMatchObject({ id: "RK-OLD001", name: "[removed]", phone: "", total: 12 });
+    const text = readFileSync(join(dir, "ruki.jsonl"), "utf8");
+    expect(text).not.toMatch(/510-555-0100/);
+    expect(text).not.toMatch(/reservation/);
+  });
+
   it("tracks spend per day", () => {
     const l = new Ledger(undefined, "x");
     const turn = { sessionId: "s", channel: "chat", user: "", reply: "", tools: [], handoff: false, model: "m", inputTokens: 0, outputTokens: 0, ms: 1 };
