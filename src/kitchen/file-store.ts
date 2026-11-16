@@ -3,6 +3,19 @@ import { join } from "node:path";
 import { validateCatalog } from "./catalog.js";
 import type { Catalog, KitchenStore, StockEvent } from "./types.js";
 
+const KINDS = ["receive", "use", "waste", "count", "move"];
+const nonEmpty = (v: unknown) => typeof v === "string" && v.length > 0;
+
+export function isStockEvent(v: unknown): v is StockEvent {
+  if (typeof v !== "object" || v === null) return false;
+  const e = v as Record<string, unknown>;
+  return nonEmpty(e.id) && nonEmpty(e.at) && nonEmpty(e.item) && nonEmpty(e.location) && nonEmpty(e.source)
+    && typeof e.kind === "string" && KINDS.includes(e.kind)
+    && typeof e.qty === "number" && Number.isFinite(e.qty) && e.qty >= 0
+    && (e.to === undefined || nonEmpty(e.to))
+    && (e.unitCost === undefined || (typeof e.unitCost === "number" && Number.isFinite(e.unitCost) && e.unitCost >= 0));
+}
+
 function check(c: Catalog, where: string) {
   const errors = validateCatalog(c);
   if (errors.length) throw new Error(`Invalid ${where}: ${errors.join(" ")}`);
@@ -27,7 +40,11 @@ export class FileStore implements KitchenStore {
       this.torn = text.length > 0 && !text.endsWith("\n");
       for (const line of text.split("\n")) {
         if (!line.trim()) continue;
-        try { this.log.push(JSON.parse(line)); } catch { console.warn(`[mise] skipped a corrupt line in ${this.eventsFile}`); }
+        try {
+          const e: unknown = JSON.parse(line);
+          if (isStockEvent(e)) this.log.push(e);
+          else console.warn(`[mise] skipped a line that isn't a stock event in ${this.eventsFile}`);
+        } catch { console.warn(`[mise] skipped a corrupt line in ${this.eventsFile}`); }
       }
     }
   }
@@ -50,6 +67,10 @@ export class FileStore implements KitchenStore {
   events(): readonly StockEvent[] { return this.log; }
 
   append(events: StockEvent[]) {
+    for (const e of events) if (!isStockEvent(e)) throw new Error(`Not a valid stock event: ${JSON.stringify(e)}`);
+    const seen = new Set(this.log.map((e) => e.id));
+    events = events.filter((e) => !seen.has(e.id) && (seen.add(e.id), true));
+    if (!events.length) return;
     appendFileSync(this.eventsFile, (this.torn ? "\n" : "") + events.map((e) => JSON.stringify(e)).join("\n") + "\n");
     this.torn = false;
     this.log.push(...events);

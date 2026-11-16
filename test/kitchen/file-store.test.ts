@@ -29,6 +29,32 @@ describe("FileStore", () => {
     new FileStore(dir, "test", seed).append([e("c")]);
     expect(new FileStore(dir, "test", seed).events().map((x) => x.id)).toEqual(["a", "c"]);
   });
+  it("skips lines that are JSON but not stock events", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kitchen-"));
+    const ok = { id: "a", at: "2026-12-01T10:00:00Z", kind: "receive", item: "eggs", location: "walk-in", qty: 1, source: "manual" };
+    const lines = ["null", "42", JSON.stringify({ ...ok, item: undefined }), JSON.stringify({ ...ok, location: "" }), JSON.stringify({ ...ok, kind: "steal" }),
+      JSON.stringify({ ...ok, qty: -1 }), JSON.stringify(ok).replace('"qty":1', '"qty":1e999'), JSON.stringify(ok)];
+    appendFileSync(join(dir, "test.stock.jsonl"), lines.join("\n") + "\n");
+    expect(new FileStore(dir, "test", seed).events()).toEqual([ok]);
+  });
+  it("throws on a bad event and writes nothing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kitchen-"));
+    const store = new FileStore(dir, "test", seed);
+    const ok = { id: "a", at: "2026-12-01T10:00:00Z", kind: "receive" as const, item: "eggs", location: "walk-in", qty: 1, source: "manual" as const };
+    expect(() => store.append([ok, { ...ok, id: "b", qty: -5 }])).toThrow(/stock event/i);
+    expect(() => store.append([{ ...ok, id: "c", qty: Number.NaN }])).toThrow(/stock event/i);
+    expect(store.events()).toEqual([]);
+    expect(new FileStore(dir, "test", seed).events()).toEqual([]);
+  });
+  it("ignores an event id it already has, so a retried confirm can't double stock", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kitchen-"));
+    const store = new FileStore(dir, "test", seed);
+    const ok = { id: "a", at: "2026-12-01T10:00:00Z", kind: "receive" as const, item: "eggs", location: "walk-in", qty: 1, source: "manual" as const };
+    store.append([ok]);
+    store.append([ok, ok]);
+    expect(store.events()).toHaveLength(1);
+    expect(new FileStore(dir, "test", seed).events()).toHaveLength(1);
+  });
   it("names the file when the catalog can't be parsed", () => {
     const dir = mkdtempSync(join(tmpdir(), "kitchen-"));
     writeFileSync(join(dir, "test.catalog.json"), "{oops");
