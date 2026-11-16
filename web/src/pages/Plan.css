@@ -51,7 +51,7 @@
   font-size: var(--text-sm);
 }
 /* Inked in, so a preorder line can't be mistaken for one typed by hand. */
-.plan__tag {
+.tag.plan__tag {
   background: var(--ink);
   color: var(--paper);
 }
