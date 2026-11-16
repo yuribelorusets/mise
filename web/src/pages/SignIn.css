@@ -1,0 +1,15 @@
+.signin {
+  max-width: 24rem;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4);
+}
+.signin__error {
+  margin-top: var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 4px solid var(--accent);
+  font-weight: 700;
+}
+.signin__go {
+  width: 100%;
+  margin-top: var(--space-4);
+}

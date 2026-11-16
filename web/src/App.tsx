@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import RequireOwner from "./components/RequireOwner";
 import Layout from "./components/Layout";
 import Today from "./pages/Today";
 import Count from "./pages/Count";
@@ -11,13 +12,15 @@ import Order from "./pages/Order";
 export function AppRoutes() {
   return (
     <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<Today />} />
-        <Route path="/count" element={<Count />} />
-        <Route path="/stock" element={<Stock />} />
-        <Route path="/recipes" element={<Recipes />} />
-        <Route path="/plan" element={<Plan />} />
-        <Route path="/assistant" element={<Assistant />} />
+      <Route element={<RequireOwner />}>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Today />} />
+          <Route path="/count" element={<Count />} />
+          <Route path="/stock" element={<Stock />} />
+          <Route path="/recipes" element={<Recipes />} />
+          <Route path="/plan" element={<Plan />} />
+          <Route path="/assistant" element={<Assistant />} />
+        </Route>
       </Route>
       <Route path="/order" element={<Order />} />
     </Routes>

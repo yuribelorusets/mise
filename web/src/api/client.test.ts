@@ -1,4 +1,4 @@
-import { apiGet, apiPost, ApiError } from "./client";
+import { apiDelete, apiGet, apiPost, ApiError } from "./client";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -49,4 +49,11 @@ test("POST sends JSON with same-origin credentials", async () => {
   expect(init.credentials).toBe("same-origin");
   expect(init.headers["Content-Type"]).toBe("application/json");
   expect(init.body).toBe('{"a":1}');
+});
+
+test("a delete is sent as DELETE with a JSON content type, and a 4xx keeps its body", async () => {
+  const fn = stub(new Response(JSON.stringify({ error: "Bad", errors: ["a", "b"] }), { status: 422 }));
+  const e = await failure(apiDelete("/api/x/1"));
+  expect(fn).toHaveBeenCalledWith("/api/x/1", expect.objectContaining({ method: "DELETE", headers: { "Content-Type": "application/json" } }));
+  expect(e.body).toEqual({ error: "Bad", errors: ["a", "b"] });
 });
