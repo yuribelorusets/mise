@@ -8,5 +8,9 @@ export class MemoryStore implements KitchenStore {
   catalog(): Catalog { return structuredClone(this.cat); }
   saveCatalog(c: Catalog) { this.cat = structuredClone(c); }
   events(): readonly StockEvent[] { return this.log; }
-  append(events: StockEvent[]) { this.log.push(...events.map((e) => ({ ...e }))); }
+  /** Skips ids it already has, as `FileStore.append` does, so a repeated confirm can't write twice. */
+  append(events: StockEvent[]) {
+    const seen = new Set(this.log.map((e) => e.id));
+    for (const e of events) if (!seen.has(e.id)) { seen.add(e.id); this.log.push({ ...e }); }
+  }
 }

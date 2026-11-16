@@ -12,4 +12,12 @@ describe("MemoryStore", () => {
     c.items.push({ id: "x", name: "x", aliases: [], baseUnit: "g", units: {}, allergens: [] });
     expect(s.catalog().items).toHaveLength(0);
   });
+
+  it("keeps one copy of an event appended twice", () => {
+    const s = new MemoryStore(empty);
+    const e = { id: "e1", at: "2026-12-01T10:00:00Z", kind: "receive" as const, item: "eggs", location: "walk-in", qty: 180, source: "manual" as const };
+    s.append([e]);
+    s.append([e]);
+    expect(s.events().map((x) => x.id)).toEqual(["e1"]);
+  });
 });
