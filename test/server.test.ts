@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
-import { createApp } from "../src/server.js";
+import { createApp, staticDir } from "../src/server.js";
 import { MockLLM } from "../src/llm/mock.js";
 import { WebhookClient } from "../src/integrations/webhook.js";
 import { loadRestaurant } from "../src/domain/restaurant.js";
@@ -26,6 +26,10 @@ async function start(app: ReturnType<typeof createApp>) {
 }
 
 describe("http", () => {
+  it("serves the built web app when web/dist exists, and the old pages otherwise", () => {
+    expect(staticDir(() => true)).toMatch(/web[\\/]dist$/);
+    expect(staticDir(() => false)).toMatch(/public$/);
+  });
   it("chats and returns the tool trace", async () => {
     const res = await fetch(`${base}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: "a", message: "Do you have sushi?" }) });
     const body = await res.json();

@@ -1,6 +1,7 @@
 import express from "express";
 import type { LLM } from "./llm/types.js";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 import { loadRestaurant, RestaurantStore, type RestaurantConfig } from "./domain/restaurant.js";
 import { WebhookClient } from "./integrations/webhook.js";
 import { runTurn, type Session } from "./agent/agent.js";
@@ -18,6 +19,11 @@ export interface AppOptions {
   ledger?: Ledger;
   limits?: Partial<Limits>;
 }
+
+const WEB_DIST = fileURLToPath(new URL("../web/dist", import.meta.url));
+const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
+/** The React app once it's built; the old static pages until then. */
+export const staticDir = (exists: (p: string) => boolean = existsSync) => (exists(WEB_DIST) ? WEB_DIST : PUBLIC_DIR);
 
 const MAX_SESSIONS = 2000;
 const SESSION_IDLE_MS = 3 * 60 * 60_000; // forget a conversation after 3 idle hours (it's still in the ledger)
@@ -81,7 +87,7 @@ export function createApp(opts: AppOptions = {}) {
   app.set("trust proxy", 1); // behind Render/Fly/Cloudflare: use the real client IP for rate limits
   app.use(express.json({ limit: "20kb" }));
   app.use(express.urlencoded({ extended: false, limit: "20kb" }));
-  app.use(express.static(fileURLToPath(new URL("../public", import.meta.url))));
+  app.use(express.static(staticDir()));
 
   // Malformed or oversized bodies: a clean 4xx, never a stack trace.
   app.use(((err, _req, res, next) => {
@@ -117,7 +123,7 @@ export function createApp(opts: AppOptions = {}) {
     }
   });
 
-  app.use("/admin", adminRouter({ config, store, ledger, limits, publicDir: fileURLToPath(new URL("../public", import.meta.url)) }));
+  app.use("/admin", adminRouter({ config, store, ledger, limits, publicDir: PUBLIC_DIR }));
 
   return app;
 }
