@@ -20,6 +20,10 @@ export function validateCatalog(c: Catalog): string[] {
   for (const [kind, ids] of [["item", c.items.map((i) => i.id)], ["location", c.locations.map((l) => l.id)], ["recipe", c.recipes.map((r) => r.id)]] as const)
     for (const id of new Set(dupes(ids))) errors.push(`Duplicate ${kind} id "${id}".`);
 
+  for (const i of c.items)
+    for (const [unit, f] of Object.entries(i.units))
+      if (!(Number.isFinite(f) && f > 0)) errors.push(`Item "${i.name}": unit "${unit}" must be a positive number.`);
+
   const converts = (itemId: string, unit: string, where: string) => {
     const item = items.get(itemId);
     if (!item) return void errors.push(`${where}: unknown item "${itemId}".`);

@@ -20,6 +20,13 @@ describe("validateCatalog", () => {
     expect(validateCatalog(c).join("\n")).toMatch(/sugar/);
     expect(validateCatalog(c).join("\n")).toMatch(/qt/);
   });
+  it("rejects item unit factors that aren't positive finite numbers", () => {
+    for (const bad of [-180, 0, Number.POSITIVE_INFINITY, Number.NaN]) {
+      const c = base();
+      c.items[0].units = { case: bad };
+      expect(validateCatalog(c).join("\n")).toMatch(/case/);
+    }
+  });
   it("finds a recipe cycle", () => {
     const c = base();
     c.recipes.push({ id: "cheese", name: "Cheese", makes: "cheese", yield: { qty: 1, unit: "kg" }, components: [{ item: "batter", qty: 1, unit: "kg" }] });

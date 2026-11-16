@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import { toBase, fromBase, UnitError } from "../../src/kitchen/units.js";
+import { factor, toBase, fromBase, UnitError } from "../../src/kitchen/units.js";
 import type { Item } from "../../src/kitchen/types.js";
 
 const item = (over: Partial<Item>): Item => ({ id: "x", name: "X", aliases: [], baseUnit: "g", units: {}, allergens: [], ...over });
@@ -25,6 +25,15 @@ describe("units", () => {
     expect(() => toBase(flour, -1, "g")).toThrow(UnitError);
     expect(() => toBase(flour, Number.NaN, "g")).toThrow(UnitError);
     expect(() => toBase(flour, Infinity, "g")).toThrow(UnitError);
+  });
+  it("only knows its own unit names, not Object.prototype's", () => {
+    for (const u of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(() => factor(flour, u)).toThrow(UnitError);
+      expect(() => factor(eggs, u)).toThrow(UnitError);
+    }
+  });
+  it("refuses a result that overflows", () => {
+    expect(() => toBase(flour, 1e308, "kg")).toThrow(UnitError);
   });
   it("converts back to what it started with", () => {
     fc.assert(fc.property(fc.double({ min: 0, max: 1e6, noNaN: true }), fc.constantFrom("g", "kg", "oz", "lb"), (q, u) =>
