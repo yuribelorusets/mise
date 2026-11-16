@@ -75,7 +75,7 @@ export class Ledger implements Recorder {
     if (!Number.isFinite(retainDays) || retainDays < 1) throw new Error(`Can't retain data for ${retainDays} days: use a number of at least 1.`);
     if (!this.file) return;
     const cutoff = now.getTime() - retainDays * 86_400_000;
-    const old = (e: Entry) => Date.parse(e.at) < cutoff;
+    const old = (e: Entry) => !(Date.parse(e.at) >= cutoff); // an unreadable timestamp counts as old
     this.entries = this.entries
       .filter((e) => !(e.kind === "turn" && old(e)))
       .map((e) => (e.kind === "order" && old(e) ? { ...e, value: { ...e.value, name: "[removed]", phone: "" } } : e));

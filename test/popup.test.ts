@@ -128,6 +128,18 @@ describe("ledger", () => {
     expect(text).not.toMatch(/reservation/);
   });
 
+  it("treats an entry with an unreadable timestamp as old", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mise-"));
+    const line = (o: object) => JSON.stringify(o) + "\n";
+    appendFileSync(join(dir, "ruki.jsonl"),
+      line({ kind: "order", at: "garbage", value: { id: "RK-BAD001", name: "Anya", phone: "510-555-0100", items: [], total: 12 } }) +
+      line({ kind: "turn", at: "garbage", value: { at: "garbage", sessionId: "x", user: "my number is 510-555-0100" } }));
+    new Ledger(dir, "ruki").compact(new Date("2026-12-04T18:00:00-08:00"), 90);
+    const after = new Ledger(dir, "ruki");
+    expect(after.orders[0]).toMatchObject({ name: "[removed]", phone: "" });
+    expect(after.turns).toEqual([]);
+  });
+
   it("refuses a retention that isn't a number of days, and keeps today's turns", () => {
     const dir = mkdtempSync(join(tmpdir(), "mise-"));
     const now = new Date("2026-12-04T18:00:00-08:00");
