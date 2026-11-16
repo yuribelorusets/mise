@@ -1831,3 +1831,22 @@ it("treats Infinity from stock as no stock limit", () => {
 - [ ] **Step 5:** Commit: `Limit preorders to what the kitchen can make`
 
 ---
+
+## Done when
+
+- Step 0 and all four branches are merged into `main` following the master plan's protocol, with reviewer and security-reviewer findings handled, and the security-reviewer's pass over the whole wave done.
+- `npm run typecheck && npm test && npm run loadtest -- 300 50 && npm run web:build && npm run web:test` passes on `main`, and `npm run eval -- --llm mock --max-usd 0.01` passes with the `live` kitchen scenarios listed as skipped.
+- `test/security-backlog.test.ts` and `test/web-fixtures.test.ts` have no `it.fails` left for the entries this wave closes, and the orchestrator has moved those entries out of "Open".
+- With `MISE_OWNER_PASSCODE` set and `web/dist` built, `npm start` serves `/order` without sign-in and every owner screen only after it; reloading `/count` returns the app.
+- A proposal made in the Assistant screen books its stock once when confirmed, from two tabs at once if need be, and Today, Stock and Plan show the change without a reload.
+- The wave 3 task plan is written against what actually merged.
+
+## Owner checkpoints
+
+- **Before step 0:** read the proposal lifecycle in D3, especially the stale rule (only newer events for the proposal's own items count).
+- **Before D merges:** pick a passcode of 8 or more characters and set `MISE_OWNER_PASSCODE` where Mise runs. Sessions last 30 days and end on restart.
+- **When F is ready:** look at the sign-in screen, which has no mockup, and the discarded-proposal stub. Everything else follows the approved mockups.
+- **Before G3 merges:** decide whether preorders should sell from what's on hand now. If preorders open before the week's delivery, stock on hand will say "sold out" too early. `popup.sellFromStock: false` keeps the menu `quantity` until then.
+- **Before G2's `makes` covers more than syrniki:** Ruki's real recipes and yields for nalysnyky, the schmears and the bagels, which replace the drafts in `data/kitchens/ruki.json`.
+- **Before any live eval run:** the `--max-usd` amount. The kitchen scenarios tagged `live` run on Haiku first.
+- Any high-severity security finding.
