@@ -7,6 +7,7 @@
   background: var(--paper);
   border-top: 2px solid var(--ink);
   padding-bottom: env(safe-area-inset-bottom);
+  padding-inline: max(0px, calc((100vw - 44rem) / 2));
 }
 .tabbar__tab {
   display: flex;

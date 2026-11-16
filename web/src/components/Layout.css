@@ -8,7 +8,7 @@
 }
 .layout__assistant {
   position: fixed;
-  right: var(--space-4);
+  right: max(var(--space-4), calc((100vw - 44rem) / 2 + var(--space-4)));
   bottom: calc(56px + var(--space-4) + env(safe-area-inset-bottom));
   z-index: 11;
   display: inline-flex;
