@@ -1,7 +1,7 @@
 import express from "express";
 import type { LLM } from "./llm/types.js";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { loadRestaurant, RestaurantStore, type RestaurantConfig } from "./domain/restaurant.js";
 import { WebhookClient } from "./integrations/webhook.js";
 import { runTurn, type Session } from "./agent/agent.js";
@@ -11,6 +11,10 @@ import { costUsd } from "./ops/pricing.js";
 import { RateLimiter, limitsFromEnv, type Limits } from "./ops/guardrails.js";
 import { adminRouter } from "./ops/admin.js";
 import { jsonOnly, sameOrigin } from "./ops/request-guards.js";
+import { ownerAuth } from "./ops/owner-auth.js";
+import { FileStore } from "./kitchen/file-store.js";
+import { MemoryStore } from "./kitchen/memory-store.js";
+import type { Catalog, KitchenStore } from "./kitchen/types.js";
 
 export interface AppOptions {
   config?: RestaurantConfig;
@@ -19,6 +23,18 @@ export interface AppOptions {
   webhook?: WebhookClient;
   ledger?: Ledger;
   limits?: Partial<Limits>;
+  kitchen?: KitchenStore;
+  /** Signs the owner in to /api/kitchen. Without one (here or in MISE_OWNER_PASSCODE) sign-in answers 503. */
+  ownerPasscode?: string;
+  secureCookies?: boolean;
+}
+
+/** The kitchen's stock and catalog: on disk under DATA_DIR, else in memory, seeded from data/kitchens/<id>.json. */
+function kitchenStore(id: string): KitchenStore {
+  const seed: Catalog = JSON.parse(readFileSync(fileURLToPath(new URL(`../data/kitchens/${id}.json`, import.meta.url)), "utf8"));
+  if (process.env.DATA_DIR) return new FileStore(process.env.DATA_DIR, id, seed);
+  console.warn("DATA_DIR isn't set, so kitchen stock isn't saved between restarts.");
+  return new MemoryStore(seed);
 }
 
 const WEB_DIST = fileURLToPath(new URL("../web/dist", import.meta.url));
@@ -99,6 +115,8 @@ export function createApp(opts: AppOptions = {}) {
   app.use(sameOrigin((process.env.MISE_ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean)));
   app.use(jsonOnly);
   app.use(express.json({ limit: "20kb" }));
+  const owner = ownerAuth({ passcode: opts.ownerPasscode ?? process.env.MISE_OWNER_PASSCODE, secure: opts.secureCookies ?? process.env.NODE_ENV === "production" });
+  app.use(owner.router);
   app.use(express.static(staticDir()));
 
   // Malformed or oversized bodies: a clean 4xx, never a stack trace.
@@ -135,6 +153,10 @@ export function createApp(opts: AppOptions = {}) {
       res.status(502).json({ error: "The model is unavailable right now." });
     }
   });
+
+  // Placeholder until the kitchen routes arrive.
+  const kitchen = opts.kitchen ?? kitchenStore(config.id);
+  app.get("/api/kitchen/catalog", owner.requireOwner, (_req, res) => res.json(kitchen.catalog()));
 
   app.use("/admin", adminRouter({ config, store, ledger, limits, publicDir: PUBLIC_DIR }));
 
