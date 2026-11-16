@@ -19,6 +19,6 @@ For each task: write the test, make it pass, run `npm --prefix web run build && 
 
 Rules:
 - Only edit files your package owns. Don't push, merge or switch branches.
-- Check every screen at 375 px wide and at desktop width before reporting done.
+- You have no browser. Never open URLs or launch a browser (no `open`, no Chrome, headless or not): it opens tabs in the owner's Chrome. Check your work with tests and the build, and describe each screen in your report. The orchestrator checks screens at 375 px and desktop width in its browser pane during review.
 
 Report: commits, test and build output, screenshots or a description of each screen, and open questions about the design.
