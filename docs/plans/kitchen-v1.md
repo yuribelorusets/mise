@@ -6,7 +6,8 @@ This is the map: waves, work packages, who builds what, which files each package
 
 - [wave-0.md](wave-0.md): cleanup, agent definitions, shared interfaces
 - [wave-1.md](wave-1.md): kitchen core, frontend shell and mockup, guardrails and eval tooling
-- Waves 2 and 3 get their own task plans once wave 1 is merged. Their code builds on what wave 1 actually produces, so writing them now would mean guessing.
+- [wave-2.md](wave-2.md): kitchen API and owner sign-in, assistant, screens on live data, preorders in the plan
+- Wave 3 gets its own task plan once wave 2 is merged.
 
 ## Global constraints
 
