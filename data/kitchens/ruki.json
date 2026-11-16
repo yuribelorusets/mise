@@ -1,0 +1,45 @@
+{
+  "items": [
+    { "id": "farmers-cheese", "name": "Farmer's cheese", "aliases": ["tvorog", "творог"], "baseUnit": "g", "units": {}, "allergens": ["dairy"] },
+    { "id": "eggs", "name": "Eggs", "aliases": [], "baseUnit": "each", "units": { "case": 180, "dozen": 12 }, "allergens": ["egg"] },
+    { "id": "flour", "name": "Flour", "aliases": [], "baseUnit": "g", "units": {}, "allergens": ["gluten"] },
+    { "id": "sugar", "name": "Sugar", "aliases": [], "baseUnit": "g", "units": {}, "allergens": [] },
+    { "id": "sour-cream", "name": "Sour cream", "aliases": [], "baseUnit": "g", "units": {}, "allergens": ["dairy"] },
+    { "id": "jam", "name": "Jam", "aliases": [], "baseUnit": "g", "units": {}, "allergens": [] },
+    { "id": "black-tea", "name": "Black tea", "aliases": [], "baseUnit": "g", "units": {}, "allergens": [] },
+    { "id": "syrniki-batter", "name": "Syrniki batter", "aliases": [], "baseUnit": "g", "units": {}, "allergens": ["dairy", "egg", "gluten"] },
+    { "id": "syrniki", "name": "Syrniki", "aliases": [], "baseUnit": "each", "units": { "order": 3 }, "allergens": ["dairy", "egg", "gluten"] }
+  ],
+  "locations": [
+    { "id": "walk-in", "name": "Walk-in", "shelfOrder": ["farmers-cheese", "sour-cream", "eggs", "syrniki-batter", "jam"] },
+    { "id": "dry", "name": "Dry storage", "shelfOrder": ["flour", "sugar", "black-tea"] }
+  ],
+  "recipes": [
+    {
+      "id": "syrniki-batter",
+      "name": "Syrniki batter",
+      "makes": "syrniki-batter",
+      "yield": { "qty": 2000, "unit": "g" },
+      "components": [
+        { "item": "farmers-cheese", "qty": 1000, "unit": "g" },
+        { "item": "eggs", "qty": 4, "unit": "each" },
+        { "item": "flour", "qty": 200, "unit": "g" },
+        { "item": "sugar", "qty": 80, "unit": "g" }
+      ],
+      "draft": true
+    },
+    {
+      "id": "syrniki",
+      "name": "Syrniki",
+      "makes": "syrniki",
+      "yield": { "qty": 1, "unit": "order" },
+      "components": [
+        { "item": "syrniki-batter", "qty": 150, "unit": "g" },
+        { "item": "sour-cream", "qty": 40, "unit": "g" },
+        { "item": "jam", "qty": 30, "unit": "g" }
+      ],
+      "draft": true
+    }
+  ],
+  "plans": []
+}
