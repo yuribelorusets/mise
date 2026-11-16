@@ -1,5 +1,5 @@
-import { stockEvents } from "./stock";
-import type { Recipe } from "./types";
+import type { Catalog, Recipe } from "../api/types";
+import { stockCatalog } from "./items";
 
 export const recipes: Recipe[] = [
   {
@@ -78,8 +78,4 @@ export const recipes: Recipe[] = [
   },
 ];
 
-/** Dollars per base unit: what the latest receive of each item cost. */
-export const prices: Record<string, number> = {};
-for (const e of stockEvents) {
-  if (e.kind === "receive" && e.unitCost !== undefined) prices[e.item] = e.unitCost;
-}
+export const recipeCatalog: Catalog = { ...stockCatalog, recipes };
