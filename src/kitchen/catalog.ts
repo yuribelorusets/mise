@@ -1,6 +1,8 @@
 import type { Catalog, Item } from "./types.js";
 import { factor } from "./units.js";
 
+export const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 const dupes = (ids: string[]) => ids.filter((id, i) => ids.indexOf(id) !== i);
 
 export function itemById(c: Catalog, id: string): Item {
@@ -18,7 +20,10 @@ export function validateCatalog(c: Catalog): string[] {
   const errors: string[] = [];
   const items = new Map(c.items.map((i) => [i.id, i]));
   for (const [kind, ids] of [["item", c.items.map((i) => i.id)], ["location", c.locations.map((l) => l.id)], ["recipe", c.recipes.map((r) => r.id)]] as const)
-    for (const id of new Set(dupes(ids))) errors.push(`Duplicate ${kind} id "${id}".`);
+    {
+      for (const id of new Set(dupes(ids))) errors.push(`Duplicate ${kind} id "${id}".`);
+      for (const id of new Set(ids)) if (typeof id !== "string" || !ID_PATTERN.test(id)) errors.push(`The ${kind} id "${id}" must be lowercase words joined by dashes.`);
+    }
 
   for (const i of c.items)
     for (const [unit, f] of Object.entries(i.units))

@@ -10,10 +10,12 @@ export interface PlanResult { prep: PrepTask[]; shopping: ShoppingLine[]; uses: 
 const purchaseUnit = (item: Item) => Object.entries(item.units).sort((a, b) => b[1] - a[1])[0];
 
 export function explode(c: Catalog, lines: PlanLine[], available: Record<string, number>): PlanResult {
-  const pool = { ...available };
-  const uses: Record<string, number> = {};
-  const short: Record<string, number> = {};
-  const needed: Record<string, number> = {};
+  const bare = (): Record<string, number> => Object.create(null);
+  const have = Object.assign(bare(), available);
+  const pool = Object.assign(bare(), available);
+  const uses = bare();
+  const short = bare();
+  const needed = bare();
   const prep = new Map<string, PrepTask>();
   const recipeFor = new Map(c.recipes.map((r) => [r.makes, r]));
 
@@ -41,7 +43,7 @@ export function explode(c: Catalog, lines: PlanLine[], available: Record<string,
   for (const line of lines) need(line.item, toBase(itemById(c, line.item), line.qty, line.unit));
 
   const shopping = Object.entries(short).map(([id, buy]): ShoppingLine => {
-    const line: ShoppingLine = { item: id, need: needed[id], have: Math.max(available[id] ?? 0, 0), buy };
+    const line: ShoppingLine = { item: id, need: needed[id], have: Math.max(have[id] ?? 0, 0), buy };
     const pu = purchaseUnit(itemById(c, id));
     return pu ? { ...line, buyUnit: pu[0], buyQty: Math.max(1, Math.ceil((buy / pu[1]) * (1 - 1e-9))) } : line;
   });

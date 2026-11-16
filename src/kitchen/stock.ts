@@ -4,8 +4,9 @@ import type { StockEvent } from "./types.js";
 export type OnHand = Record<string, Record<string, number>>;
 
 export function onHand(events: readonly StockEvent[]): OnHand {
-  const oh: OnHand = {};
-  const at = (item: string) => (oh[item] ??= {});
+  // No prototype, so ids like "constructor" or "__proto__" are plain keys.
+  const oh: OnHand = Object.create(null);
+  const at = (item: string) => (oh[item] ??= Object.create(null));
   for (const e of events) {
     const locs = at(e.item);
     const cur = locs[e.location] ?? 0;

@@ -86,12 +86,12 @@ describe("preorders", () => {
 
 describe("kitchen stock", () => {
   // Backlog: "Stock and plan maths trip over ids that are also Object.prototype names."
-  it.fails("counts stock at a location called 'constructor' like any other", () => {
+  it("counts stock at a location called 'constructor' like any other", () => {
     const oh = onHand([ev({ location: "constructor", qty: 10 })]);
     expect(total(oh, "eggs")).toBe(10);
   });
 
-  it.fails("doesn't let an event for an item called '__proto__' change every other item's stock", () => {
+  it("doesn't let an event for an item called '__proto__' change every other item's stock", () => {
     const proto = Object.prototype as Record<string, unknown>;
     try {
       const oh = onHand([ev({ item: "__proto__", kind: "count", qty: 500 }), ev({ qty: 10 })]);
@@ -102,13 +102,13 @@ describe("kitchen stock", () => {
     }
   });
 
-  it.fails("refuses a stock event for an item the store can't hold safely", () => {
+  it("refuses a stock event for an item the store can't hold safely", () => {
     const seed: Catalog = { items: [{ id: "eggs", name: "Eggs", aliases: [], baseUnit: "each", units: {}, allergens: [] }], locations: [], recipes: [], plans: [] };
     const store = new FileStore(mkdtempSync(join(tmpdir(), "kitchen-")), "test", seed);
     expect(() => store.append([ev({ item: "__proto__" })])).toThrow();
   });
 
-  it.fails("plans an item called 'constructor' with numbers, not strings", () => {
+  it("plans an item called 'constructor' with numbers, not strings", () => {
     const c: Catalog = { items: [{ id: "constructor", name: "Odd", aliases: [], baseUnit: "g", units: {}, allergens: [] }], locations: [], recipes: [], plans: [] };
     const { shopping } = explode(c, [{ item: "constructor", qty: 100, unit: "g", source: "manual" }], {});
     expect(shopping).toEqual([{ item: "constructor", need: 100, have: 0, buy: 100 }]);

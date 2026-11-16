@@ -1,18 +1,19 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { validateCatalog } from "./catalog.js";
+import { ID_PATTERN, validateCatalog } from "./catalog.js";
 import type { Catalog, KitchenStore, StockEvent } from "./types.js";
 
 const KINDS = ["receive", "use", "waste", "count", "move"];
+const idLike = (v: unknown) => typeof v === "string" && ID_PATTERN.test(v);
 const nonEmpty = (v: unknown) => typeof v === "string" && v.length > 0;
 
 export function isStockEvent(v: unknown): v is StockEvent {
   if (typeof v !== "object" || v === null) return false;
   const e = v as Record<string, unknown>;
-  return nonEmpty(e.id) && nonEmpty(e.at) && nonEmpty(e.item) && nonEmpty(e.location) && nonEmpty(e.source)
+  return nonEmpty(e.id) && nonEmpty(e.at) && idLike(e.item) && idLike(e.location) && nonEmpty(e.source)
     && typeof e.kind === "string" && KINDS.includes(e.kind)
     && typeof e.qty === "number" && Number.isFinite(e.qty) && e.qty >= 0
-    && (e.to === undefined || nonEmpty(e.to))
+    && (e.to === undefined || idLike(e.to))
     && (e.unitCost === undefined || (typeof e.unitCost === "number" && Number.isFinite(e.unitCost) && e.unitCost >= 0));
 }
 

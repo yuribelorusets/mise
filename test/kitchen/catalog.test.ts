@@ -14,6 +14,14 @@ const base = (): Catalog => ({
 
 describe("validateCatalog", () => {
   it("accepts a good catalog", () => expect(validateCatalog(base())).toEqual([]));
+  it("refuses ids that aren't kebab-case", () => {
+    const c = base();
+    c.items.push({ id: "__proto__", name: "Odd", aliases: [], baseUnit: "g", units: {}, allergens: [] });
+    c.locations.push({ id: "Walk In", name: "Walk-in 2", shelfOrder: [] });
+    const errors = validateCatalog(c).join(" ");
+    expect(errors).toMatch(/__proto__/);
+    expect(errors).toMatch(/Walk In/);
+  });
   it("names unknown items and units", () => {
     const c = base();
     c.recipes[0].components.push({ item: "sugar", qty: 1, unit: "g" }, { item: "cheese", qty: 1, unit: "qt" });
