@@ -1633,3 +1633,201 @@ Assistant page: messages live in component state and `sessionStorage` (the conve
 - [ ] **Step 5:** Commit: `Show the live menu, prices and privacy notice on /order`
 
 ---
+
+## Package G: preorders feed the plan, and stock limits what's sold
+
+**Branch:** `feat/preorders-plan` · **Agent:** builder · **Owns:** `src/kitchen/cost.ts`, `src/kitchen/preorders.ts` (new), `src/kitchen/api.ts`, `src/domain/restaurant.ts`, `src/server.ts`, `data/restaurants/ruki.json`, `web/src/pages/Plan.tsx`, `test/kitchen/cost.test.ts`, `test/kitchen/preorders.test.ts` (new), `test/kitchen/api.test.ts`, `test/popup.test.ts`, `web/src/pages/Plan.test.tsx` · **Starts after:** D, E and F are merged
+
+**Consumes:** `maxBatch`, `explode`, `onHand`, `totals`, `itemById`, `toBase` from the kitchen core; `RestaurantStore`, `MenuItem`, `Order` from `src/domain/restaurant.ts`; D's `kitchenRouter` and `TodayView`; E's `max_batch` tool (already maps `Infinity` to `null`); F's Plan page.
+
+**Produces:**
+- `maxBatch(...)` returns `Infinity` when stock doesn't limit it
+- `MenuItem.makes?: { item: string; unit: string }` and `popup.sellFromStock?: boolean` in the restaurant config
+- `src/kitchen/preorders.ts`: `preorderLines(orders, menu, date): PlanLine[]`, `planLines(plan, date, orders, menu): PlanLine[]`, `orderCapacity(c, available, planned, makes): number`
+- `RestaurantStore` option `capacity?: (m: MenuItem) => number | undefined`
+
+How it fits together. A preorder is a guest's order for menu items. A menu item that the kitchen makes names the kitchen item and unit it turns into (`syrniki` → 1 `order` of the `syrniki` item, which the kitchen catalog says is 3 pieces). Preorder lines are worked out from the orders every time they're needed and never stored in the catalog, so a plan can't count an order twice, and retention or a corrected order flows through on its own. The plan for a date is its manual lines plus the preorder lines for that date.
+
+What's left to sell is what the kitchen can still make once everything already planned for that date is set aside: the plan's manual lines and every preorder so far. If the menu item still has a `quantity`, that's a cap on top ("I'll make 40 even if I could make 60"). An item without `makes` keeps working from `quantity` alone, like black tea.
+
+### Task G1: `maxBatch` says when stock doesn't limit it
+
+The backlog's low: today a recipe with no components, or with plenty of stock, returns the search limit of 10,000, which reads as a real answer. Do it first, since G3 relies on it.
+
+**Files:** Modify `src/kitchen/cost.ts`. Test: `test/kitchen/cost.test.ts`.
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+it("returns Infinity when stock doesn't limit the batch", () => {
+  const water: Catalog = {
+    items: [{ id: "tea", name: "Tea", aliases: [], baseUnit: "each", units: {}, allergens: [] }],
+    locations: [], plans: [],
+    recipes: [{ id: "tea", name: "Tea", makes: "tea", yield: { qty: 1, unit: "each" }, components: [] }],
+  };
+  expect(maxBatch(water, {}, "tea", "each")).toBe(Infinity);
+  expect(maxBatch(c, { cheese: 1e9, eggs: 1e9 }, "syrniki", "order")).toBe(Infinity);
+  expect(maxBatch(c, { cheese: 3000, eggs: 100 }, "syrniki", "order")).toBe(40);
+});
+
+it("refuses a search limit that isn't a positive whole number", () => {
+  for (const limit of [Number.NaN, 0, -1, 1.5, Infinity]) expect(() => maxBatch(c, {}, "syrniki", "order", limit)).toThrow(RangeError);
+});
+```
+
+- [ ] **Step 2:** `npx vitest run test/kitchen/cost.test.ts`. Expected: FAIL.
+- [ ] **Step 3: Implement**
+
+```ts
+/** The most whole `unit`s of an item you can make from what's available, or Infinity when stock allows at least `limit`. */
+export function maxBatch(c: Catalog, available: Record<string, number>, item: string, unit: string, limit = 10_000): number {
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError(`The search limit must be a positive whole number, not ${limit}.`);
+  const fits = (n: number) => explode(c, [{ item, qty: n, unit, source: "manual" }], available).shopping.length === 0;
+  if (fits(limit)) return Infinity;
+  let lo = 0, hi = limit - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(mid)) lo = mid; else hi = mid - 1;
+  }
+  return lo;
+}
+```
+
+- [ ] **Step 4:** `npm test`. Expected: PASS, including D's `max-batch` route and E's `max_batch` tool, which already send `null` for `Infinity`. Add a test to `test/kitchen/api.test.ts` that the route now answers `{ max: null }` for an unlimited recipe, replacing D's placeholder test.
+- [ ] **Step 5:** Commit: `Say when stock doesn't limit a batch instead of returning the search cap`
+
+### Task G2: Preorders become plan lines
+
+**Files:** Create `src/kitchen/preorders.ts`. Modify `src/domain/restaurant.ts` (the `makes` field only), `data/restaurants/ruki.json`, `src/kitchen/api.ts`, `src/server.ts`, `web/src/pages/Plan.tsx`. Tests: `test/kitchen/preorders.test.ts`, `test/kitchen/api.test.ts`, `web/src/pages/Plan.test.tsx`.
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { preorderLines, planLines } from "../../src/kitchen/preorders.js";
+import { loadRestaurant, type Order } from "../../src/domain/restaurant.js";
+import type { Catalog, ProductionPlan } from "../../src/kitchen/types.js";
+
+const menu = loadRestaurant("ruki").menu;
+const order = (items: [string, number][], pickupDate = "2026-12-05", over: Partial<Order> = {}): Order => ({
+  id: `RK-${Math.random().toString(36).slice(2, 8)}`, name: "Anna", phone: "5105550101", total: 0, pickupDate, pickupTime: "11:00",
+  items: items.map(([id, quantity]) => ({ id, name: id, quantity, price: 12 })), ...over,
+});
+
+describe("preorders in the plan", () => {
+  it("adds up orders for the date into kitchen units", () => {
+    const lines = preorderLines([order([["syrniki", 2]]), order([["syrniki", 3], ["black-tea", 1]]), order([["syrniki", 9]], "2026-12-12")], menu, "2026-12-05");
+    expect(lines).toEqual([{ item: "syrniki", qty: 5, unit: "order", source: "preorder" }]);
+  });
+
+  it("keeps the plan's own lines and adds preorders after them", () => {
+    const plan: ProductionPlan = { id: "sat", date: "2026-12-05", lines: [{ item: "syrniki", qty: 10, unit: "order", source: "manual" }] };
+    expect(planLines(plan, "2026-12-05", [order([["syrniki", 2]])], menu)).toEqual([
+      { item: "syrniki", qty: 10, unit: "order", source: "manual" },
+      { item: "syrniki", qty: 2, unit: "order", source: "preorder" },
+    ]);
+  });
+
+  it("ignores preorder lines that somehow got stored in a plan", () => {
+    const plan: ProductionPlan = { id: "sat", date: "2026-12-05", lines: [{ item: "syrniki", qty: 4, unit: "order", source: "preorder" }] };
+    expect(planLines(plan, "2026-12-05", [], menu)).toEqual([]);
+  });
+
+  it("still counts an order after retention has removed the name", () => {
+    expect(preorderLines([order([["syrniki", 2]], "2026-12-05", { name: "[removed]", phone: "" })], menu, "2026-12-05")).toHaveLength(1);
+  });
+
+  it("every menu item that names a kitchen item points at a real one", () => {
+    const kitchen: Catalog = JSON.parse(readFileSync("data/kitchens/ruki.json", "utf8"));
+    for (const m of menu.filter((x) => x.makes)) expect(kitchen.items.some((i) => i.id === m.makes!.item), m.id).toBe(true);
+  });
+});
+```
+
+  In `test/kitchen/api.test.ts`: with one preorder for 2 syrniki on the event date, `GET /plans` returns that date's plan with a `source: "preorder"` line for 2 orders; `GET /today` prep covers 2 more orders than the plan's own lines; and `POST /catalog/plans` with a preorder line in the body stores only the manual lines.
+  In `web/src/pages/Plan.test.tsx`: a line with `source: "preorder"` shows the mockup's preorder tag and has no edit field.
+- [ ] **Step 2:** Run them. Expected: FAIL.
+- [ ] **Step 3: Implement.**
+  - `MenuItem` gets `makes?: { item: string; unit: string }`. In `data/restaurants/ruki.json`, `syrniki` gets `"makes": { "item": "syrniki", "unit": "order" }`. The other menu items aren't in the kitchen catalog yet; they get `makes` when Ruki's real recipes arrive (owner checkpoint).
+  - `preorderLines` sums `quantity` per `makes.item` and `makes.unit` over orders whose `pickupDate` is `date`, in menu order. Don't multiply by `piecesPerOrder`: the kitchen's `order` unit already says how many pieces that is.
+  - `planLines(plan, date, orders, menu)` returns the plan's lines with `source: "manual"` (or `[]` without a plan) followed by `preorderLines`.
+  - In `api.ts`, `/today`, `/plans` and `/plans/:id/result` use `planLines`. A date with preorders and no plan gets a plan made on the fly, `{ id: "preorders-<date>", date, lines }`, so Today isn't empty before the owner makes one. `POST /catalog/plans` drops `source: "preorder"` lines before saving.
+  - In `createApp`, check at startup that each `makes.item` is in the kitchen catalog and `makes.unit` converts for it, and throw a message naming the menu item if not. A config mistake should stop the server, not show up at the first order.
+- [ ] **Step 4:** `npm test && npm run web:test`. Expected: PASS.
+- [ ] **Step 5:** Commit: `Roll preorders into the production plan`, then `Mark preorder lines on the Plan screen` for the web change
+
+### Task G3: Sell what the kitchen can make
+
+**Files:** Modify `src/kitchen/preorders.ts`, `src/domain/restaurant.ts`, `src/server.ts`, `data/restaurants/ruki.json`. Tests: `test/kitchen/preorders.test.ts`, `test/popup.test.ts`.
+
+The rule stays in `RestaurantStore.remaining`, per `CLAUDE.md`, and the kitchen side only answers "how many more". The store gets it through an option so `src/domain/` doesn't import the kitchen:
+
+```ts
+// RestaurantStore constructor opts:
+capacity?: (m: MenuItem) => number | undefined; // more orders the kitchen can make, or undefined for no limit
+
+remaining(itemId: string): number | undefined {
+  const m = this.config.menu.find((x) => x.id === itemId);
+  if (!m) return undefined;
+  const sold = this.orders.flatMap((o) => o.items).filter((l) => l.id === itemId).reduce((s, l) => s + l.quantity, 0);
+  const byQuantity = m.quantity === undefined ? undefined : Math.max(0, m.quantity - sold);
+  const fromStock = m.makes && this.config.popup.sellFromStock !== false ? this.capacity?.(m) : undefined;
+  const limits = [byQuantity, fromStock].filter((n): n is number => n !== undefined && Number.isFinite(n));
+  return limits.length ? Math.max(0, Math.floor(Math.min(...limits))) : undefined;
+}
+```
+
+`capacity` is already net of what's sold, because the planned lines include every preorder; `quantity` isn't, so it subtracts `sold` itself. `placeOrder` already checks `remaining` synchronously before it pushes the order, so two guests ordering the last batch at once can't both get it.
+
+```ts
+/** How many more `makes.unit` the kitchen can make once everything already planned for the day is set aside. */
+export function orderCapacity(c: Catalog, available: Record<string, number>, planned: PlanLine[], makes: { item: string; unit: string }): number {
+  const { uses } = explode(c, planned, available);
+  const left: Record<string, number> = Object.create(null);
+  for (const [id, n] of Object.entries(available)) left[id] = Math.max(0, n - (uses[id] ?? 0));
+  return maxBatch(c, left, makes.item, makes.unit);
+}
+```
+
+`createApp` passes `capacity: (m) => orderCapacity(kitchen.catalog(), totals(onHand(kitchen.events())), planLines(<the event date's plan>, eventDate, store.orders, config.menu), m.makes!)`. Cache the answer per menu item, keyed by the event count, the order count and the catalog's JSON length, since `searchMenu` asks for every item on every call and the load test hits it 300 times.
+
+`popup.sellFromStock` is `true` in `ruki.json`. Setting it to `false` goes back to `quantity` alone, for a week when preorders open before the stock is in (owner checkpoint).
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+// test/kitchen/preorders.test.ts
+it("sells only what's left after the plan and earlier preorders", () => {
+  // Stock for exactly 10 orders of syrniki, a plan for 4 of them and 3 already preordered.
+  expect(orderCapacity(kitchen, stockFor10, [manual(4), preordered(3)], { item: "syrniki", unit: "order" })).toBe(3);
+});
+it("is Infinity when the recipe needs nothing on hand", () => { /* the tea recipe from G1 */ });
+
+// test/popup.test.ts
+it("sells out when the kitchen can't make more, even under the menu quantity", () => {
+  const store = new RestaurantStore(ruki, { capacity: (m) => (m.id === "syrniki" ? 2 : undefined) });
+  expect(store.remaining("syrniki")).toBe(2);
+  expect(() => store.placeOrder({ name: "Sam", phone: "510-555-0202", items: [{ item: "syrniki", quantity: 3 }], pickupTime: "11:00" }, NOW)).toThrow(/Only 2 Syrniki left/);
+});
+it("keeps the menu quantity as a cap when stock would allow more", () => {
+  const store = new RestaurantStore(ruki, { capacity: () => 500 });
+  expect(store.remaining("syrniki")).toBe(40);
+});
+it("falls back to the menu quantity when sellFromStock is off", () => {
+  const off = { ...ruki, popup: { ...ruki.popup, sellFromStock: false } };
+  expect(new RestaurantStore(off, { capacity: () => 0 }).remaining("syrniki")).toBe(40);
+});
+it("treats Infinity from stock as no stock limit", () => {
+  const noQty = { ...ruki, menu: ruki.menu.map((m) => (m.id === "syrniki" ? { ...m, quantity: undefined } : m)) };
+  expect(new RestaurantStore(noQty, { capacity: () => Infinity }).remaining("syrniki")).toBeUndefined();
+});
+```
+
+  And one end-to-end test through `createApp` with a `MemoryStore` kitchen holding stock for 3 orders: the third chat order for one syrniki succeeds and the fourth is refused as sold out.
+- [ ] **Step 2:** Run them. Expected: FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4:** `npm test && npm run loadtest -- 300 50 && npm run eval -- --llm mock --max-usd 0.01`. Expected: PASS. The eval runner builds its `RestaurantStore` without `capacity`, so `ruki.yaml`'s sold-out scenarios keep working from `quantity`.
+- [ ] **Step 5:** Commit: `Limit preorders to what the kitchen can make`
+
+---
