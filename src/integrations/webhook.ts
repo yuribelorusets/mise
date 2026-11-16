@@ -1,5 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { appendFile } from "node:fs/promises";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 
 export type MiseEventType = "order.placed" | "handoff.requested";
 
@@ -54,6 +55,24 @@ export class WebhookClient {
 
   build(type: MiseEventType, sessionId: string, channel: MiseEvent["channel"], data: Record<string, unknown>): MiseEvent {
     return { id: randomUUID(), type, occurredAt: new Date().toISOString(), sessionId, channel, data };
+  }
+
+  /** Drops fallback-file events older than `retainDays` (or with an unreadable time), so guest details don't pile up there. */
+  compact(now: Date, retainDays: number) {
+    if (!Number.isFinite(retainDays) || retainDays < 1) throw new Error(`Can't retain data for ${retainDays} days: use a number of at least 1.`);
+    if (!this.fallbackFile || !existsSync(this.fallbackFile)) return;
+    const cutoff = now.getTime() - retainDays * 86_400_000;
+    const keep = readFileSync(this.fallbackFile, "utf8").split("\n").filter((line) => {
+      if (!line.trim()) return false;
+      try {
+        return Date.parse((JSON.parse(line) as MiseEvent).occurredAt) >= cutoff;
+      } catch {
+        return false;
+      }
+    });
+    const tmp = `${this.fallbackFile}.tmp`;
+    writeFileSync(tmp, keep.map((l) => l + "\n").join(""));
+    renameSync(tmp, this.fallbackFile);
   }
 
   async send(event: MiseEvent): Promise<{ delivered: boolean; attempts: number; status?: number }> {

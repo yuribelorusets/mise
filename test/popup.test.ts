@@ -176,6 +176,21 @@ describe("ledger", () => {
     expect(new Ledger(dir, "ruki").orders[0]).toMatchObject({ id: "RK-OLD002", total: 12 });
   });
 
+  it("applies the same retention to the webhook fallback file", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mise-"));
+    const file = join(dir, "events.jsonl");
+    const now = new Date("2026-12-04T18:00:00-08:00");
+    const ev = (id: string, occurredAt: string) =>
+      JSON.stringify({ id, type: "order.placed", occurredAt, sessionId: "s", channel: "chat", data: { name: "Anya", phone: "510-555-0100", notes: "gate code 42" } }) + "\n";
+    appendFileSync(file, ev("old", "2026-08-01T00:00:00Z") + ev("bad", "garbage") + ev("new", "2026-12-01T00:00:00Z"));
+    const hook = new WebhookClient({ url: "", fallbackFile: file });
+    hook.compact(now, 90);
+    const text = readFileSync(file, "utf8");
+    expect(text.trim().split("\n").map((l) => JSON.parse(l).id)).toEqual(["new"]);
+    await hook.send(hook.build("order.placed", "s2", "chat", { name: "Boris" }));
+    expect(readFileSync(file, "utf8").trim().split("\n")).toHaveLength(2);
+  });
+
   it("compacts again on a timer that doesn't keep the process alive", () => {
     vi.useFakeTimers();
     try {

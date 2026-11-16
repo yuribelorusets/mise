@@ -31,14 +31,18 @@ const SESSION_IDLE_MS = 3 * 60 * 60_000; // forget a conversation after 3 idle h
 export function createApp(opts: AppOptions = {}) {
   const config = opts.config ?? opts.store?.config ?? loadRestaurant();
   const ledger = opts.ledger ?? new Ledger(process.env.DATA_DIR, config.id);
+  const webhook = opts.webhook ?? new WebhookClient();
   const days = retainDays();
   if (ledger.persistent) {
-    ledger.compact(new Date(), days);
-    scheduleCompaction(() => ledger.compact(new Date(), days));
+    const compactAll = () => {
+      ledger.compact(new Date(), days);
+      webhook.compact(new Date(), days);
+    };
+    compactAll();
+    scheduleCompaction(compactAll);
   }
   const store = opts.store ?? new RestaurantStore(config, { history: ledger, recorder: ledger });
   const llm = opts.llm ?? makeLLM(undefined, undefined, config);
-  const webhook = opts.webhook ?? new WebhookClient();
   const limits = { ...limitsFromEnv(), ...opts.limits };
   const limiter = new RateLimiter(limits.perMinute);
   if (config.draft) console.warn(`⚠ ${config.id} is marked draft: check menu, prices and dates in data/restaurants/${config.id}.json before sharing the link.`);
