@@ -1,0 +1,55 @@
+/* Printed prep sheet: warm paper, black ink, one stamp-red accent. */
+:root {
+  color-scheme: light dark;
+
+  --paper: #f7f3ea;
+  --paper-shade: #ece6d8;
+  --ink: #15120e;
+  --ink-muted: #5c554a;
+  --rule: #15120e;
+  --rule-soft: #cfc7b4;
+  --accent: #b3261e;
+  --accent-ink: #ffffff;
+  --ok: #2d6a3e;
+  --warn-bg: #fbe9c8;
+
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-num: 1.375rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius: 6px;
+  --radius-pill: 999px;
+  --tap: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14120f;
+    --paper-shade: #1f1c17;
+    --ink: #f2ede1;
+    --ink-muted: #a69f90;
+    --rule: #f2ede1;
+    --rule-soft: #3b362d;
+    --accent: #ff7a6b;
+    --accent-ink: #14120f;
+    --ok: #7fcf94;
+    --warn-bg: #3a2d12;
+  }
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
