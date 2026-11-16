@@ -1,12 +1,13 @@
 import { useState } from "react";
+import { useCatalog, useItemHistory, useStock } from "../api/hooks";
+import type { BaseUnit, Catalog, StockEvent } from "../api/types";
 import { showQty, showSigned, showWhen, daysBetween } from "../lib/format";
-import { eventSign, onHand, type Flag, type StockRow } from "../lib/stock";
-import { NOW, findItem, itemName, items, locationName, stockLocations } from "../fixtures/items";
-import { stockEvents } from "../fixtures/stock";
-import type { StockEvent } from "../fixtures/types";
+import { eventSign, stockRows, type Flag, type StockRow } from "../lib/stock";
 import "./Stock.css";
 
-const rows = onHand(stockEvents, items, NOW);
+const itemName = (c: Catalog, id: string) => c.items.find((i) => i.id === id)?.name ?? id;
+const locationName = (c: Catalog, id: string) => c.locations.find((l) => l.id === id)?.name ?? id;
+const baseOf = (c: Catalog, id: string): BaseUnit => c.items.find((i) => i.id === id)?.baseUnit ?? "each";
 
 const days = (n: number) => (n === 0 ? "today" : n === 1 ? "1 day ago" : `${n} days ago`);
 
@@ -33,14 +34,19 @@ const kindName: Record<StockEvent["kind"], string> = {
   move: "Move",
 };
 
-function History({ row }: { row: StockRow }) {
-  const base = findItem(row.item)?.baseUnit ?? "each";
+function History({ row, catalog }: { row: StockRow; catalog: Catalog }) {
+  const history = useItemHistory(row.item);
+  const base = baseOf(catalog, row.item);
+  // Only the events that touched this location, newest first (the server sends them that way).
+  const events = (history.data ?? []).filter((e) => e.location === row.location || e.to === row.location);
+  if (history.error) return <div className="stock__history"><p className="stock__why" role="alert">{history.error.message}</p></div>;
+  if (!history.data) return <div className="stock__history"><p className="stock__why" role="status">Loading…</p></div>;
   return (
     <div className="stock__history">
       {row.flags.includes("negative") && (
         <p className="stock__why">More was used than was ever received here. A delivery was probably never logged.</p>
       )}
-      <table className="stock__events" aria-label={`${itemName(row.item)} history`}>
+      <table className="stock__events" aria-label={`${itemName(catalog, row.item)} history`}>
         <thead>
           <tr>
             <th scope="col">Event</th>
@@ -48,10 +54,10 @@ function History({ row }: { row: StockRow }) {
           </tr>
         </thead>
         <tbody>
-          {row.history.map((e) => {
+          {events.map((e) => {
             const shown = showQty(e.qty, base);
             const moved =
-              e.kind === "move" ? (e.to === row.location ? ` from ${locationName(e.location)}` : ` to ${locationName(e.to ?? "")}`) : "";
+              e.kind === "move" ? (e.to === row.location ? ` from ${locationName(catalog, e.location)}` : ` to ${locationName(catalog, e.to ?? "")}`) : "";
             return (
               <tr key={e.id}>
                 <th scope="row">
@@ -76,31 +82,42 @@ function History({ row }: { row: StockRow }) {
 
 export default function Stock() {
   const [open, setOpen] = useState<string | null>(null);
+  const catalog = useCatalog();
+  const stock = useStock();
+
+  const head = (sub: string) => (
+    <header className="page-head">
+      <p className="page-head__kicker">Ruki pop-up</p>
+      <h1>Stock</h1>
+      <p className="page-head__sub tnum">{sub}</p>
+    </header>
+  );
+  const failed = catalog.error ?? stock.error;
+  if (failed) return <>{head("")}<p className="page-head__sub" role="alert">{failed.message}</p></>;
+  if (!catalog.data || !stock.data) return <>{head("")}<p className="page-head__sub" role="status">Loading…</p></>;
+
+  const cat = catalog.data;
+  const rows = stockRows(stock.data, cat.items, new Date().toISOString());
+  const places = [...cat.locations.map((l) => l.id), ...new Set(rows.map((r) => r.location).filter((l) => !cat.locations.some((x) => x.id === l)))];
   const flagged = rows.filter((r) => r.flags.length > 0).length;
 
   return (
     <>
-      <header className="page-head">
-        <p className="page-head__kicker">Ruki pop-up</p>
-        <h1>Stock</h1>
-        <p className="page-head__sub tnum">
-          On hand by location. {flagged} of {rows.length} need a look. Tap an item for its history.
-        </p>
-      </header>
+      {head(`On hand by location. ${flagged} of ${rows.length} need a look. Tap an item for its history.`)}
 
-      {stockLocations.map((loc) => {
-        const here = rows.filter((r) => r.location === loc.id);
+      {places.map((place) => {
+        const here = rows.filter((r) => r.location === place);
         return (
-          <section key={loc.id} className="sheet-section" aria-labelledby={`stock-${loc.id}`}>
+          <section key={place} className="sheet-section" aria-labelledby={`stock-${place}`}>
             <div className="sheet-head">
-              <h2 id={`stock-${loc.id}`}>{loc.name}</h2>
+              <h2 id={`stock-${place}`}>{locationName(cat, place)}</h2>
               <p className="sheet-head__note tnum">{here.length} items</p>
             </div>
             <ul className="sheet-list">
               {here.map((r) => {
                 const key = `${r.location}/${r.item}`;
                 const isOpen = open === key;
-                const shown = showSigned(r.qty, findItem(r.item)?.baseUnit ?? "each");
+                const shown = showSigned(r.qty, baseOf(cat, r.item));
                 return (
                   <li key={key} className={r.flags.includes("negative") ? "stock__row stock__row--negative" : "stock__row"}>
                     <button
@@ -110,10 +127,10 @@ export default function Stock() {
                       onClick={() => setOpen(isOpen ? null : key)}
                     >
                       <span className="stock__what">
-                        <span className="stock__name">{itemName(r.item)}</span>
+                        <span className="stock__name">{itemName(cat, r.item)}</span>
                         {r.arrivedAt && (
                           <span className="stock__age tnum">
-                            {r.arrivedBy} {days(daysBetween(r.arrivedAt, NOW))}
+                            received {days(daysBetween(r.arrivedAt, new Date().toISOString()))}
                           </span>
                         )}
                         {r.flags.length > 0 && (
@@ -128,7 +145,7 @@ export default function Stock() {
                       <span className="stock__unit">{shown.unit}</span>
                       <span className="stock__chev" aria-hidden="true" />
                     </button>
-                    {isOpen && <History row={r} />}
+                    {isOpen && <History row={r} catalog={cat} />}
                   </li>
                 );
               })}

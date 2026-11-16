@@ -1,4 +1,4 @@
-import type { Item, StockEvent } from "../fixtures/types";
+import type { Item, StockEvent, StockView } from "../api/types";
 import { daysBetween } from "./format";
 
 export type Flag = "negative" | "expired" | "near-expiry" | "below-par";
@@ -8,63 +8,39 @@ export interface StockRow {
   location: string;
   /** On hand in base units. Can be negative. */
   qty: number;
-  /** When the stock last arrived here: a receive, or a move in. */
+  /** When this item was last received, anywhere. */
   arrivedAt?: string;
-  arrivedBy?: "received" | "moved in";
-  /** Days until expiry, when the item has a shelf life. Negative once expired. */
+  /** Days until the shelf life runs out, counted from the last receive. Negative once past it. */
   daysLeft?: number;
   flags: Flag[];
-  /** Events that touched this item at this location, newest first. */
-  history: StockEvent[];
 }
 
 const NEAR_EXPIRY_DAYS = 2;
 
-/** Fold the event log into on-hand rows, one per item and location, in first-seen order. */
-export function onHand(events: readonly StockEvent[], items: readonly Item[], now: string): StockRow[] {
-  const rows = new Map<string, StockRow>();
-  const row = (item: string, location: string) => {
-    const key = `${location}/${item}`;
-    let r = rows.get(key);
-    if (!r) rows.set(key, (r = { item, location, qty: 0, flags: [], history: [] }));
-    return r;
-  };
-
-  for (const e of events) {
-    const r = row(e.item, e.location);
-    r.history.unshift(e);
-    if (e.kind === "receive") {
-      r.qty += e.qty;
-      r.arrivedAt = e.at;
-      r.arrivedBy = "received";
-    } else if (e.kind === "count") {
-      r.qty = e.qty;
-    } else {
-      r.qty -= e.qty;
-    }
-    if (e.kind === "move" && e.to) {
-      const dest = row(e.item, e.to);
-      dest.history.unshift(e);
-      dest.qty += e.qty;
-      dest.arrivedAt = e.at;
-      dest.arrivedBy = "moved in";
+/** One row per item and location from the server's on-hand figures, flagged against shelf life and par. */
+export function stockRows(view: StockView, items: readonly Item[], now: string): StockRow[] {
+  const rows: StockRow[] = [];
+  for (const [id, byLocation] of Object.entries(view.onHand)) {
+    const item = items.find((i) => i.id === id);
+    const total = Object.values(byLocation).reduce((a, b) => a + b, 0);
+    const arrivedAt = view.lastReceived[id];
+    for (const [location, qty] of Object.entries(byLocation)) {
+      const row: StockRow = { item: id, location, qty, flags: [] };
+      if (item?.shelfLifeDays !== undefined && arrivedAt && qty > 0) {
+        row.arrivedAt = arrivedAt;
+        row.daysLeft = item.shelfLifeDays - daysBetween(arrivedAt, now);
+      } else if (arrivedAt) row.arrivedAt = arrivedAt;
+      if (qty < 0) row.flags.push("negative");
+      if (row.daysLeft !== undefined && row.daysLeft < 0) row.flags.push("expired");
+      else if (row.daysLeft !== undefined && row.daysLeft <= NEAR_EXPIRY_DAYS) row.flags.push("near-expiry");
+      if (total >= 0 && item?.par !== undefined && total < item.par) row.flags.push("below-par");
+      rows.push(row);
     }
   }
-
-  for (const r of rows.values()) {
-    const item = items.find((i) => i.id === r.item);
-    if (item?.shelfLifeDays !== undefined && r.arrivedAt && r.qty > 0) {
-      r.daysLeft = item.shelfLifeDays - daysBetween(r.arrivedAt, now);
-    }
-    if (r.qty < 0) r.flags.push("negative");
-    if (r.daysLeft !== undefined && r.daysLeft < 0) r.flags.push("expired");
-    else if (r.daysLeft !== undefined && r.daysLeft <= NEAR_EXPIRY_DAYS) r.flags.push("near-expiry");
-    if (r.qty >= 0 && item?.par !== undefined && r.qty < item.par) r.flags.push("below-par");
-  }
-  return [...rows.values()];
+  return rows;
 }
 
-/** How an event changed the amount at one location: "+", "-" or "=" for a count. */
+/** How an event changed the amount at one location: "+", "−" or "=" for a count. */
 export function eventSign(e: StockEvent, location: string): "+" | "−" | "=" {
   if (e.kind === "count") return "=";
   if (e.kind === "receive") return "+";

@@ -1,4 +1,4 @@
-import type { StockEvent } from "./types";
+import type { StockEvent, StockView } from "../api/types";
 
 type Row = [at: string, kind: StockEvent["kind"], item: string, location: string, qty: number, source: StockEvent["source"], extra?: Partial<StockEvent>];
 
@@ -44,3 +44,30 @@ export const stockEvents: StockEvent[] = rows.map(([at, kind, item, location, qt
   source,
   ...extra,
 }));
+
+/** What GET /api/kitchen/stock answers for these events. test/web-fixtures.test.ts checks this against the real stockView. */
+export function stockViewOf(events: StockEvent[] = stockEvents): StockView {
+  const onHand: StockView["onHand"] = {};
+  const lastCount: StockView["lastCount"] = {};
+  const lastReceived: StockView["lastReceived"] = {};
+  for (const e of events) {
+    const here = (onHand[e.item] ??= {});
+    const cur = here[e.location] ?? 0;
+    if (e.kind === "receive") {
+      here[e.location] = cur + e.qty;
+      lastReceived[e.item] = e.at;
+    } else if (e.kind === "use" || e.kind === "waste") here[e.location] = cur - e.qty;
+    else if (e.kind === "count") {
+      here[e.location] = e.qty;
+      (lastCount[e.item] ??= {})[e.location] = { qty: e.qty, at: e.at };
+    } else if (e.kind === "move" && e.to) {
+      here[e.location] = cur - e.qty;
+      here[e.to] = (here[e.to] ?? 0) + e.qty;
+    }
+  }
+  return { basedOn: events.length, onHand, lastCount, lastReceived };
+}
+
+/** What GET /api/kitchen/stock/:item/history answers: that item's events, newest first. */
+export const historyOf = (item: string, events: StockEvent[] = stockEvents): StockEvent[] =>
+  events.filter((e) => e.item === item).slice(-50).reverse();

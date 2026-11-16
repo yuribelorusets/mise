@@ -1,3 +1,4 @@
+import type { Catalog, Item as ApiItem } from "../api/types";
 import type { Item } from "./types";
 
 /** The mockups' "now": Friday morning, the day before the pop-up. */
@@ -9,7 +10,7 @@ export const stockLocations = [
   { id: "freezer", name: "Freezer" },
 ];
 
-export const items: Item[] = [
+const mockItems: Item[] = [
   { id: "farmers-cheese", name: "Farmer's cheese", baseUnit: "g", units: { lb: 454 }, par: 4000, shelfLifeDays: 7 },
   { id: "eggs", name: "Eggs", baseUnit: "each", units: { dozen: 12, flat: 30, case: 180 }, par: 72, shelfLifeDays: 28 },
   { id: "sour-cream", name: "Sour cream", baseUnit: "g", units: { tub: 900 }, par: 1000, shelfLifeDays: 10 },
@@ -29,6 +30,17 @@ export const items: Item[] = [
   { id: "syrniki", name: "Syrniki", baseUnit: "each", units: { order: 3 } },
   { id: "nalysnyky", name: "Nalysnyky", baseUnit: "each", units: { order: 2 } },
 ];
+
+/** The same items as the catalog endpoint sends them. */
+export const items: ApiItem[] = mockItems.map((i) => ({ ...i, aliases: [], allergens: [] }));
+
+/** The catalog the Stock screen is tested against: three locations, each listing what it holds. */
+export const stockCatalog: Catalog = {
+  items,
+  locations: stockLocations.map((l) => ({ ...l, shelfOrder: [] })),
+  recipes: [],
+  plans: [],
+};
 
 const byId = new Map(items.map((i) => [i.id, i]));
 
