@@ -6,8 +6,10 @@ import { loadScenarios, runScenario } from "../src/evals/run.js";
 describe("eval suite (mock)", async () => {
   process.env.MISE_TODAY = "2026-12-04";
   const scenarios = await loadScenarios();
-  it("loads the scenario suite", () => {
+  it("has scenarios in all four languages", () => {
     expect(scenarios.length).toBeGreaterThanOrEqual(12);
+    const langs = new Set(scenarios.map((s) => s.expect?.language).filter(Boolean));
+    for (const l of ["en", "es", "fr", "ru"]) expect(langs).toContain(l);
   });
   for (const s of scenarios)
     it(s.id, async () => {
