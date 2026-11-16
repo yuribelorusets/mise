@@ -1,12 +1,18 @@
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { parseArgs } from "node:util";
 import { loadRestaurant, RestaurantStore, type RestaurantConfig } from "../domain/restaurant.js";
 import { WebhookClient } from "../integrations/webhook.js";
-import { runTurn, type ToolCallTrace } from "../agent/agent.js";
+import { runTurn, today, type ToolCallTrace } from "../agent/agent.js";
+import { MemoryStore } from "../kitchen/memory-store.js";
+import { ProposalBook } from "../kitchen/proposals.js";
+import { runKitchenTurn } from "../kitchen/assistant/loop.js";
+import { KitchenMockLLM } from "../kitchen/assistant/mock.js";
+import type { Catalog, NewItemOffer, ProductionPlan, StockEvent, StockKind } from "../kitchen/types.js";
 import { makeLLM, now } from "../config.js";
 import { costUsd } from "../ops/pricing.js";
-import { grade, type Check, type Expectation } from "./graders.js";
+import { grade, gradeKitchen, type Check, type Expectation } from "./graders.js";
 import { judge } from "./judge.js";
 import { renderHtml } from "./report.js";
 import { simulatedGuest, type Simulation } from "./simulate.js";
@@ -15,9 +21,14 @@ process.env.MISE_TODAY ||= "2026-12-04"; // freeze the calendar so results are c
 
 export interface Scenario {
   id: string; restaurant?: string; tags?: string[]; notes?: string;
+  kitchen?: string; // a kitchen id from data/kitchens/; when set, the turns go to the kitchen assistant, not the guest host
   turns?: string[]; // scripted guest messages, or...
   simulate?: Simulation; // ...a model playing the guest (needs a real model; skipped on the mock)
-  setup?: { orders?: { name: string; phone: string; items: { item: string; quantity: number }[]; pickupTime?: string }[] };
+  setup?: {
+    orders?: { name: string; phone: string; items: { item: string; quantity: number }[]; pickupTime?: string }[];
+    stock?: { kind: StockKind; item: string; location: string; qty: number; unitCost?: number }[]; // base units, written as manual events before the first turn
+    plans?: ProductionPlan[];
+  };
   expect: Expectation;
 }
 export interface ScenarioResult {
@@ -51,7 +62,48 @@ export async function loadScenarios(dir = "evals/scenarios"): Promise<Scenario[]
   return (await Promise.all(files.map(async (f) => parse(await readFile(`${dir}/${f}`, "utf8")) as Scenario[]))).flat();
 }
 
+/** A scenario for the owner's kitchen assistant: the store, proposals and offers are graded when the conversation ends. */
+async function runKitchenScenario(s: Scenario, variant: { label: string; llm: string; model?: string }, trial: number, meter?: SpendMeter): Promise<ScenarioResult> {
+  const kitchen = s.kitchen!;
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(kitchen)) throw new Error(`Scenario ${s.id}: invalid kitchen "${kitchen}".`);
+  const seed: Catalog = JSON.parse(readFileSync(`data/kitchens/${kitchen}.json`, "utf8"));
+  seed.plans = [...seed.plans, ...(s.setup?.plans ?? [])];
+  const store = new MemoryStore(seed);
+  const stock: StockEvent[] = (s.setup?.stock ?? []).map((e, i) => ({ id: `setup-${i}`, at: "2026-12-04T08:00:00Z", source: "manual", ...e }));
+  store.append(stock);
+  const proposals = new ProposalBook(store);
+  const llm = variant.llm === "mock" ? new KitchenMockLLM() : makeLLM(variant.llm, variant.model, restaurant(s.restaurant ?? "ruki"));
+  const skipped = variant.llm === "mock" && (s.simulate || s.tags?.includes("live"));
+  const base = { id: s.id, restaurant: `kitchen:${kitchen}`, tags: s.tags ?? [], variant: variant.label, trial, model: llm.name };
+  const usage = { input_tokens: 0, output_tokens: 0 };
+  if (skipped) return { ...base, pass: true, skipped: true, checks: [], turns: [], ms: 0, tokens: 0, usage };
+
+  const catalogBefore = store.catalog();
+  const session = { id: `eval-${s.id}-${trial}`, messages: [] as never[] };
+  const turns: ScenarioResult["turns"] = [];
+  const offers: NewItemOffer[] = [];
+  let cutOff = false;
+  const t0 = Date.now();
+  for (const user of s.turns ?? []) {
+    if (meter?.wouldExceed(costUsd(llm.name, usage))) { cutOff = true; break; }
+    const r = await runKitchenTurn(llm, session, user, { store, proposals, today: today(now()), offers: [], proposed: [] });
+    usage.input_tokens += r.usage.input_tokens;
+    usage.output_tokens += r.usage.output_tokens;
+    offers.push(...r.offers);
+    turns.push({ user, reply: r.reply, toolCalls: r.toolCalls });
+  }
+  const calls = turns.flatMap((t) => t.toolCalls);
+  const reply = turns.at(-1)?.reply ?? "";
+  const checks = grade(s.expect, reply, calls, []);
+  if (s.expect.kitchen_end_state)
+    checks.push(...gradeKitchen(s.expect.kitchen_end_state, { store, proposals, catalogBefore, eventsBefore: stock.length, offers, reply, calls }));
+  const result: ScenarioResult = { ...base, pass: checks.every((c) => c.pass), checks, turns, ms: Date.now() - t0, tokens: usage.input_tokens + usage.output_tokens, usage, extraUsd: 0 };
+  if (cutOff) { result.skipped = true; result.pass = true; }
+  return result;
+}
+
 export async function runScenario(s: Scenario, variant: { label: string; llm: string; model?: string }, trial = 1, withJudge = false, meter?: SpendMeter): Promise<ScenarioResult> {
+  if (s.kitchen) return runKitchenScenario(s, variant, trial, meter);
   const config = restaurant(s.restaurant ?? "ruki");
   const llm = makeLLM(variant.llm, variant.model, config);
   const store = new RestaurantStore(config);

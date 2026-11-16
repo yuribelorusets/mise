@@ -64,3 +64,39 @@ describe("spend cap", () => {
     expect(guest.usage).toEqual({ input_tokens: 200, output_tokens: 20 });
   });
 });
+
+describe("kitchen scenarios", () => {
+  const receive = (base: number) => ({
+    id: "kitchen-inline", kitchen: "ruki", turns: ["two cases eggs and 5 kg flour came in"],
+    expect: { kitchen_end_state: { proposals: 1, lines: [{ item: "eggs", base }, { item: "flour", base: 5000 }], events_written: 0 } },
+  });
+
+  it("grades the proposals a conversation left, in base units", async () => {
+    const r = await runScenario(receive(360), { label: "mock", llm: "mock" });
+    expect(r.checks.filter((c) => !c.pass)).toEqual([]);
+    expect(r.checks.length).toBeGreaterThan(0);
+  });
+
+  it("fails when a line's amount is wrong", async () => {
+    const r = await runScenario(receive(180), { label: "mock", llm: "mock" });
+    expect(r.pass).toBe(false);
+  });
+
+  it("starts from the stock and plans in setup", async () => {
+    const r = await runScenario({
+      id: "kitchen-setup", kitchen: "ruki", turns: ["what am I short for Saturday?"],
+      setup: { plans: [{ id: "sat", date: "2026-12-05", lines: [{ item: "syrniki", qty: 40, unit: "order", source: "manual" }] }], stock: [{ kind: "count", item: "eggs", location: "walk-in", qty: 12 }] },
+      expect: { tools_called: [{ name: "shopping_list" }], kitchen_end_state: { reply_numbers_from: "shopping_list", proposals: 0 } },
+    }, { label: "mock", llm: "mock" });
+    expect(r.checks.filter((c) => !c.pass)).toEqual([]);
+  });
+
+  it("fails a reply with a number no tool gave", async () => {
+    const r = await runScenario({
+      id: "kitchen-numbers", kitchen: "ruki", turns: ["how many eggs do I have"],
+      setup: { stock: [{ kind: "count", item: "eggs", location: "walk-in", qty: 12 }] },
+      expect: { kitchen_end_state: { reply_numbers_from: "shopping_list" } },
+    }, { label: "mock", llm: "mock" });
+    expect(r.pass).toBe(false);
+  });
+});
