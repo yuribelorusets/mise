@@ -7,7 +7,7 @@ export interface Item {
   name: string;
   aliases: string[]; // other names, including ones learned from receipts
   baseUnit: BaseUnit;
-  /** Item-specific units, in base units: { case: 180, dozen: 12 } for eggs, { order: 1 } for syrniki. */
+  /** Item-specific units, in base units: { case: 180, dozen: 12 } for eggs, { order: 3 } for syrniki. */
   units: Record<string, number>;
   category?: string;
   allergens: string[];
