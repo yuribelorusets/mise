@@ -10,6 +10,7 @@ import { Ledger, retainDays, scheduleCompaction } from "./ops/ledger.js";
 import { costUsd } from "./ops/pricing.js";
 import { RateLimiter, limitsFromEnv, type Limits } from "./ops/guardrails.js";
 import { adminRouter } from "./ops/admin.js";
+import { jsonOnly, sameOrigin } from "./ops/request-guards.js";
 
 export interface AppOptions {
   config?: RestaurantConfig;
@@ -95,8 +96,9 @@ export function createApp(opts: AppOptions = {}) {
 
   const app = express();
   app.set("trust proxy", 1); // behind Render/Fly/Cloudflare: use the real client IP for rate limits
+  app.use(sameOrigin((process.env.MISE_ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean)));
+  app.use(jsonOnly);
   app.use(express.json({ limit: "20kb" }));
-  app.use(express.urlencoded({ extended: false, limit: "20kb" }));
   app.use(express.static(staticDir()));
 
   // Malformed or oversized bodies: a clean 4xx, never a stack trace.
