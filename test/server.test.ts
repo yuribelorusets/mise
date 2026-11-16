@@ -58,6 +58,23 @@ describe("http", () => {
     expect(menu.find((m: { id: string }) => m.id === "syrniki")).toMatchObject({ name: "Babushka's Syrniki", price: 12 });
     expect(menu[0]).not.toHaveProperty("quantity");
   });
+  it("serves the app's index.html for app routes once web/dist is built", async () => {
+    const webDist = mkdtempSync(join(tmpdir(), "webdist-"));
+    mkdirSync(join(webDist, "assets"));
+    writeFileSync(join(webDist, "index.html"), '<html><body><div id="root"></div></body></html>');
+    writeFileSync(join(webDist, "assets", "app.js"), "console.log(1)");
+    const app = await start(createApp({ llm: new MockLLM(), webhook: new WebhookClient({ url: "", fallbackFile: null }), webDist }));
+    for (const path of ["/count", "/order", "/stock/eggs"]) {
+      const res = await fetch(`${app.url}${path}`, { headers: { accept: "text/html" } });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain('<div id="root">');
+    }
+    expect((await fetch(`${app.url}/assets/app.js`)).status).toBe(200);
+    expect((await fetch(`${app.url}/api/nope`, { headers: { accept: "text/html" } })).status).toBe(404);
+    expect((await fetch(`${app.url}/admin/nope`, { headers: { accept: "text/html" } })).status).not.toBe(200);
+    expect((await fetch(`${app.url}/assets/missing.js`)).status).toBe(404);
+    app.close();
+  });
   it("protects the owner dashboard and reports what happened", async () => {
     expect((await fetch(`${base}/admin/api/summary`)).status).toBe(401);
     expect((await fetch(`${base}/admin/api/summary`, { headers: { authorization: "Bearer nope" } })).status).toBe(401);

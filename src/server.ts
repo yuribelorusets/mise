@@ -11,7 +11,7 @@ import { costUsd } from "./ops/pricing.js";
 import { RateLimiter, limitsFromEnv, type Limits } from "./ops/guardrails.js";
 import { adminRouter } from "./ops/admin.js";
 import { jsonOnly, sameOrigin } from "./ops/request-guards.js";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { kitchenRouter } from "./kitchen/api.js";
 import { ProposalBook } from "./kitchen/proposals.js";
 import { createKitchenAssistant } from "./kitchen/assistant/index.js";
@@ -33,6 +33,8 @@ export interface AppOptions {
   /** Signs the owner in to /api/kitchen. Without one (here or in MISE_OWNER_PASSCODE) sign-in answers 503. */
   ownerPasscode?: string;
   secureCookies?: boolean;
+  /** For tests: serve the built app from here instead of web/dist. */
+  webDist?: string;
 }
 
 /** The kitchen's stock and catalog: on disk under DATA_DIR, else in memory, seeded from data/kitchens/<id>.json. */
@@ -123,7 +125,8 @@ export function createApp(opts: AppOptions = {}) {
   app.use(express.json({ limit: "20kb" }));
   const owner = ownerAuth({ passcode: opts.ownerPasscode ?? process.env.MISE_OWNER_PASSCODE, secure: opts.secureCookies ?? process.env.NODE_ENV === "production" });
   app.use(owner.router);
-  app.use(express.static(staticDir()));
+  const dir = opts.webDist ?? staticDir();
+  app.use(express.static(dir));
 
   // Malformed or oversized bodies: a clean 4xx, never a stack trace.
   app.use(((err, _req, res, next) => {
@@ -167,6 +170,14 @@ export function createApp(opts: AppOptions = {}) {
   app.use("/api/kitchen", owner.requireOwner, kitchenRouter({ store: kitchen, proposals, assistant, orders: () => store.orders, today: () => localDate(now(), config.timezone), ledger, limits }));
 
   app.use("/admin", adminRouter({ config, store, ledger, limits, publicDir: PUBLIC_DIR }));
+
+  // The app routes itself in the browser, so /count or /stock/eggs on a reload gets index.html. Only for pages: a missing script stays a 404.
+  if (dir !== PUBLIC_DIR) {
+    app.use((req, res, next) => {
+      if (req.method !== "GET" || /^\/(api|admin)(\/|$)/.test(req.path) || extname(req.path) || !req.accepts("html")) return next();
+      res.set("Cache-Control", "no-cache").sendFile(join(dir, "index.html"));
+    });
+  }
 
   return app;
 }
