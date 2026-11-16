@@ -135,8 +135,9 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
         return {
           isError: false,
           content: {
-            results: items.map(({ id, name, price, allergens, dietary, description, remaining, soldOut }) => ({
+            results: items.map(({ id, name, price, allergens, dietary, description, piecesPerOrder, remaining, soldOut }) => ({
               id, name, price, allergens, dietary, description,
+              ...(piecesPerOrder && piecesPerOrder > 1 ? { piecesPerOrder } : {}),
               ...(remaining !== undefined ? { remaining, soldOut } : {}),
             })),
             note: items.length ? "Kitchen handles all major allergens; cross-contact is possible." : "No matching dishes on the menu.",

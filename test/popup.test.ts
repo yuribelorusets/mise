@@ -26,6 +26,13 @@ describe("pop-up mode", () => {
     expect(store.reservations).toHaveLength(0);
   });
 
+  it("tells the agent how many pieces come in one order", async () => {
+    const out = await runTool("search_menu", { query: "сырники" },
+      { store: new RestaurantStore(ruki), webhook: new WebhookClient({ url: "", fallbackFile: null }), sessionId: "t", channel: "eval", now: BEFORE_CUTOFF });
+    const [syrniki] = (out.content as { results: { id: string; piecesPerOrder?: number }[] }).results;
+    expect(syrniki).toMatchObject({ id: "syrniki", piecesPerOrder: 3 });
+  });
+
   it("never sells more than the batch", () => {
     const s = new RestaurantStore(ruki);
     for (let i = 0; i < 2; i++) order(s, "syrniki", 20, ["10:00", "10:30"][i]);

@@ -40,7 +40,8 @@
       "quantity": 40,
       "allergens": ["dairy", "egg", "gluten"],
       "dietary": ["vegetarian"],
-      "description": "Farmer's cheese pancakes, sour cream, seasonal jam. Three per order."
+      "piecesPerOrder": 3,
+      "description": "Farmer's cheese pancakes, sour cream, seasonal jam."
     },
     {
       "id": "nalysnyky",
@@ -51,7 +52,8 @@
       "quantity": 30,
       "allergens": ["dairy", "egg", "gluten"],
       "dietary": ["vegetarian"],
-      "description": "Ukrainian crepes filled with sweet farmer's cheese. Two per order."
+      "piecesPerOrder": 2,
+      "description": "Ukrainian crepes filled with sweet farmer's cheese."
     },
     {
       "id": "bagel-classic",

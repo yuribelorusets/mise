@@ -9,6 +9,7 @@ export interface MenuItem {
   category: string;
   price: number;
   quantity?: number; // limited batch (pop-ups); omitted = unlimited
+  piecesPerOrder?: number; // syrniki come three to an order; omitted = 1
   allergens: string[];
   dietary: string[];
   description: string;
