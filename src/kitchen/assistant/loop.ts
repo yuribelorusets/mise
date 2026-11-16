@@ -43,7 +43,7 @@ export async function runKitchenTurn(llm: LLM, session: KitchenSession, text: st
       res = await llm.complete({ system, messages: draft, tools: KITCHEN_TOOLS });
     } catch (err) {
       console.error(`[mise] kitchen model call failed (session ${session.id}, step ${step}):`, (err as Error).message);
-      return { reply: UNREACHABLE, proposals: [], offers: [], model: llm.name, usage, toolCalls };
+      return { reply: UNREACHABLE, proposals: ctx.proposed, offers: ctx.offers, model: llm.name, usage, toolCalls };
     }
     usage.input_tokens += res.usage?.input_tokens ?? 0;
     usage.output_tokens += res.usage?.output_tokens ?? 0;
