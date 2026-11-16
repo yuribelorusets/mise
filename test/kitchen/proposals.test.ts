@@ -213,4 +213,12 @@ describe("proposal lifecycle", () => {
     expect(r.proposal.status).toBe("confirmed");
     expect(store.events()).toHaveLength(1);
   });
+
+  it("keeps a long or non-string raw note out of the stock log", () => {
+    const { store, book } = setup();
+    const p = book.create({ source: "chat", lines: [eggs] });
+    book.confirm(p.id, [{ ...eggs, raw: "x".repeat(20_000) }, { ...flour, raw: 42 as unknown as string }]);
+    expect(store.events()[0].note).toHaveLength(200);
+    expect(store.events()[1].note).toBeUndefined();
+  });
 });

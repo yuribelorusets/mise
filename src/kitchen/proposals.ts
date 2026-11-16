@@ -102,7 +102,8 @@ export class ProposalBook {
     const problems = lines.map((l) => checkLine(c, l));
     if (problems.some(Boolean)) throw new ProposalError(problems.filter(Boolean).join(" "), 422, problems);
     const at = this.now().toISOString();
-    const events: StockEvent[] = lines.map((l, i) => {
+    const clean = lines.map(cleanLine);
+    const events: StockEvent[] = clean.map((l, i) => {
       const item = c.items.find((x) => x.id === l.item)!;
       return {
         id: `${p.id}-${i}`, at, kind: l.kind, item: l.item, location: l.location,
@@ -115,7 +116,7 @@ export class ProposalBook {
       };
     });
     this.store.append(events);
-    Object.assign(p, { lines: lines.map(cleanLine), status: "confirmed", confirmedAt: at, events: events.map((e) => e.id) });
+    Object.assign(p, { lines: clean, status: "confirmed", confirmedAt: at, events: events.map((e) => e.id) });
     this.save();
     return { proposal: this.view(p), events: [...p.events!] };
   }
