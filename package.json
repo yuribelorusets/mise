@@ -9,7 +9,10 @@
     "eval": "tsx src/evals/run.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "loadtest": "tsx scripts/loadtest.ts"
+    "loadtest": "tsx scripts/loadtest.ts",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "web:test": "npm --prefix web test"
   },
   "author": "Yuri Belorusets",
   "license": "MIT",

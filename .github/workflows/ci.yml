@@ -8,6 +8,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: npm --prefix web ci
+      - run: npm run web:build
+      - run: npm run web:test
       - run: npm run typecheck
       - run: npm test
       - run: npm run loadtest -- 300 50
