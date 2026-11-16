@@ -24,7 +24,9 @@
     "pickupWindows": ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30"],
     "ordersPerWindow": 10,
     "orderCutoff": "2026-12-04T20:00:00-08:00",
-    "paymentLink": ""
+    "paymentLink": "",
+    "maxOrdersPerPhone": 2,
+    "maxPerItem": 6
   },
   "menu": [
     {

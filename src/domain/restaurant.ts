@@ -32,6 +32,8 @@ export interface RestaurantConfig {
     ordersPerWindow: number;
     orderCutoff: string; // ISO datetime
     paymentLink?: string;
+    maxOrdersPerPhone?: number; // default 2
+    maxPerItem?: number; // most of one item in a single order, default 6
   };
   menu: MenuItem[];
 }
@@ -129,6 +131,7 @@ export class RestaurantStore {
   placeOrder(
     o: { name: string; phone: string; items: { item: string; quantity: number }[]; pickupTime?: string; notes?: string; sessionId?: string },
     now: Date,
+    opts: { caps?: boolean } = {},
   ): Order & { duplicate?: boolean } {
     const c = this.config;
     if (!Array.isArray(o.items) || !o.items.length) throw new Error("An order needs at least one item.");
@@ -163,6 +166,15 @@ export class RestaurantStore {
     const dupe = o.sessionId && this.orders.find((x) => same(x) && now.getTime() - Date.parse(x.createdAt ?? "0") < 60 * 60_000);
     if (dupe) return { ...dupe, duplicate: true };
 
+    if (opts.caps !== false) {
+      const maxPerPhone = c.popup.maxOrdersPerPhone ?? 2;
+      const fromPhone = this.orders.filter((x) => lastTen(x.phone) === lastTen(o.phone)).length;
+      if (fromPhone >= maxPerPhone)
+        throw new Error(`This phone number already has ${fromPhone} preorders. To change one, message us${c.instagram ? ` on Instagram (${c.instagram})` : ""}.`);
+      const maxPerItem = c.popup.maxPerItem ?? 6;
+      for (const l of lines) if (l.quantity > maxPerItem) throw new Error(`One order can include at most ${maxPerItem} of ${l.name}.`);
+    }
+
     const w = this.windows(now).find((x) => x.time === pickupTime);
     if (!w) throw new Error(`${pickupTime} isn't a pickup window. Windows: ${c.popup.pickupWindows.join(", ")}.`);
     if (!w.open) throw new Error(`The ${pickupTime} window is full.`);
@@ -188,6 +200,7 @@ export class RestaurantStore {
 // ---------- validation helpers ----------
 
 const digits = (s: string) => String(s ?? "").replace(/\D/g, "");
+const lastTen = (s: string) => digits(s).slice(-10);
 const clip = (s: string | undefined, n: number) => (s?.trim() ? s.trim().slice(0, n) : undefined);
 
 /** "9:30", " 11:00 " -> "09:30", "11:00". Anything else passes through and fails the stricter checks. */

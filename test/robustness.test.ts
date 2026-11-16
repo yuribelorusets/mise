@@ -229,10 +229,10 @@ describe("concurrent requests", () => {
 
   it("never sells the last unit twice when orders race", async () => {
     const store = new RestaurantStore(ruki);
-    order; // 40 syrniki; 3 guests ask for 20 at once
-    const results = await Promise.all([1, 2, 3].map((i) =>
-      runTool("place_order", { ...order, phone: `510-555-010${i}`, items: [{ item: "syrniki", quantity: 20 }], pickupTime: ["10:00", "10:30", "11:00"][i - 1] }, { ...ctx(store), sessionId: `g${i}` })));
-    expect(results.filter((r) => !r.isError)).toHaveLength(2);
+    // 40 syrniki; 9 guests ask for 5 at once (the per-item cap is 6)
+    const results = await Promise.all([1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) =>
+      runTool("place_order", { ...order, phone: `510-555-010${i}`, items: [{ item: "syrniki", quantity: 5 }], pickupTime: ["10:00", "10:30", "11:00"][i % 3] }, { ...ctx(store), sessionId: `g${i}` })));
+    expect(results.filter((r) => !r.isError)).toHaveLength(8);
     expect(store.remaining("syrniki")).toBe(0);
   });
 });

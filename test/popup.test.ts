@@ -13,8 +13,9 @@ import { summary, ordersCsv } from "../src/ops/admin.js";
 const ruki = loadRestaurant("ruki");
 const BEFORE_CUTOFF = new Date("2026-12-04T18:00:00-08:00");
 const AFTER_CUTOFF = new Date("2026-12-04T21:00:00-08:00");
+let guest = 0; // a new phone number each time, so the per-phone cap doesn't get in the way
 const order = (s: RestaurantStore, item: string, quantity: number, pickupTime = "11:00", now = BEFORE_CUTOFF) =>
-  s.placeOrder({ name: "Anya", phone: "510-555-0100", items: [{ item, quantity }], pickupTime }, now);
+  s.placeOrder({ name: "Anya", phone: `510-555-${1000 + guest++}`, items: [{ item, quantity }], pickupTime }, now);
 
 describe("pop-up mode", () => {
   it("only offers pop-up tools, and refuses a tool it wasn't given", async () => {
@@ -35,7 +36,7 @@ describe("pop-up mode", () => {
 
   it("never sells more than the batch", () => {
     const s = new RestaurantStore(ruki);
-    for (let i = 0; i < 2; i++) order(s, "syrniki", 20, ["10:00", "10:30"][i]);
+    for (let i = 0; i < 8; i++) order(s, "syrniki", 5, ["10:00", "10:30"][i % 2]);
     expect(s.remaining("syrniki")).toBe(0);
     expect(() => order(s, "syrniki", 1)).toThrow(/sold out/);
     expect(s.searchMenu({ query: "syrniki" })[0]).toMatchObject({ soldOut: true, remaining: 0 });
@@ -43,8 +44,8 @@ describe("pop-up mode", () => {
 
   it("says how many are left instead of overselling", () => {
     const s = new RestaurantStore(ruki);
-    order(s, "nalysnyky", 20, "10:00");
-    expect(() => order(s, "nalysnyky", 11)).toThrow(/Only 10 Nalysnyky left/);
+    for (const n of [5, 5, 5, 5, 5, 2]) order(s, "nalysnyky", n, "10:00");
+    expect(() => order(s, "nalysnyky", 4)).toThrow(/Only 3 Nalysnyky left/);
   });
 
   it("caps orders per pickup window and rejects times that aren't windows", () => {
@@ -68,17 +69,35 @@ describe("pop-up mode", () => {
   });
 });
 
+describe("preorder caps", () => {
+  it("caps preorders per phone number, however it's formatted", () => {
+    const s = new RestaurantStore(ruki);
+    const place = (phone: string, sessionId: string) =>
+      s.placeOrder({ name: "Anya", phone, items: [{ item: "syrniki", quantity: 1 }], pickupTime: "11:00", sessionId }, BEFORE_CUTOFF);
+    place("510-555-0100", "a");
+    place("(510) 555-0100", "b");
+    expect(() => place("+1 510.555.0100", "c")).toThrow(/already has 2 preorders/);
+    expect(() => place("510-555-0199", "d")).not.toThrow();
+  });
+
+  it("caps how many of one item a single order can take", () => {
+    const s = new RestaurantStore(ruki);
+    expect(() => order(s, "syrniki", 7)).toThrow(/at most 6/);
+    expect(() => order(s, "syrniki", 6)).not.toThrow();
+  });
+});
+
 describe("ledger", () => {
   it("replays orders after a restart, so a sold-out batch stays sold out", () => {
     const dir = mkdtempSync(join(tmpdir(), "mise-"));
     const a = new Ledger(dir, "ruki");
-    order(new RestaurantStore(ruki, { history: a, recorder: a }), "syrniki", 15);
+    order(new RestaurantStore(ruki, { history: a, recorder: a }), "syrniki", 6);
     appendFileSync(join(dir, "ruki.jsonl"), '{"kind":"order","at":"x","value":'); // torn write from a crash
 
     const b = new Ledger(dir, "ruki");
     const s = new RestaurantStore(ruki, { history: b, recorder: b });
     expect(s.orders).toHaveLength(1);
-    expect(s.remaining("syrniki")).toBe(25);
+    expect(s.remaining("syrniki")).toBe(34);
   });
 
   it("skips reservation lines left in an old ledger", () => {
