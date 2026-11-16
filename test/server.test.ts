@@ -101,4 +101,14 @@ describe("pop-up deployment", () => {
     expect(cfg).toMatchObject({ name: "Ruki", popup: { eventDate: "2026-12-05" } });
     expect(done.reply).toMatch(/RK-[A-Z0-9]{6}/);
   });
+
+  it("tells guests what's kept and for how long", async () => {
+    process.env.MISE_RETAIN_DAYS = "60";
+    const app = await start(createApp({ llm: new MockLLM(), webhook: new WebhookClient({ url: "", fallbackFile: null }) }));
+    const cfg = await (await fetch(`${app.url}/api/config`)).json();
+    app.close();
+    delete process.env.MISE_RETAIN_DAYS;
+    expect(cfg.privacyNotice).toMatch(/60 days/);
+    expect(cfg.privacyNotice).toMatch(/name and phone/i);
+  });
 });

@@ -33,7 +33,8 @@ const retainDays = () => Number(process.env.MISE_RETAIN_DAYS ?? 90);
 export function createApp(opts: AppOptions = {}) {
   const config = opts.config ?? opts.store?.config ?? loadRestaurant();
   const ledger = opts.ledger ?? new Ledger(process.env.DATA_DIR, config.id);
-  if (ledger.persistent) ledger.compact(new Date(), retainDays());
+  const days = retainDays();
+  if (ledger.persistent) ledger.compact(new Date(), days);
   const store = opts.store ?? new RestaurantStore(config, { history: ledger, recorder: ledger });
   const llm = opts.llm ?? makeLLM(undefined, undefined, config);
   const webhook = opts.webhook ?? new WebhookClient();
@@ -108,6 +109,7 @@ export function createApp(opts: AppOptions = {}) {
       tagline: config.brand?.tagline, accent: config.brand?.accent, examples: config.brand?.examples ?? [],
       popup: { eventDate: config.popup.eventDate, location: config.popup.location, pickupWindows: config.popup.pickupWindows },
       llm: llm.name, draft: !!config.draft,
+      privacyNotice: `We keep your name and phone number to prepare your order, and remove them after ${days} days. Chats are saved for the same time to improve the assistant.`,
     }),
   );
 
