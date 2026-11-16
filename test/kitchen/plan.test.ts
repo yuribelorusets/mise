@@ -41,3 +41,16 @@ describe("explode", () => {
     expect(r.shopping).toEqual([]);
   });
 });
+
+describe("explode on a bad catalog", () => {
+  it("throws on a recipe cycle instead of overflowing the stack", () => {
+    const bad = structuredClone(c);
+    bad.recipes.push({ id: "cheese", name: "Cheese", makes: "cheese", yield: { qty: 1000, unit: "g" }, components: [{ item: "batter", qty: 100, unit: "g" }] });
+    expect(() => explode(bad, plan(1), {})).toThrow(/cycle/i);
+  });
+  it("throws on a recipe that yields nothing", () => {
+    const bad = structuredClone(c);
+    bad.recipes[0].yield.qty = 0;
+    expect(() => explode(bad, plan(1), {})).toThrow(/yield/i);
+  });
+});
