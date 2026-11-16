@@ -236,7 +236,7 @@ const T: Record<Lang, {
 }> = {
   en: {
     greet: (n) => `Hi! Thanks for reaching out to ${n}. I can take a preorder for the next pop-up or answer menu questions.`,
-    decline: "Sorry, I can't offer discounts or change our policies, but I'm happy to help with a booking or an order.",
+    decline: "Sorry, I can't offer discounts or change our policies, but I'm happy to help with a preorder.",
     needContact: "Great. What name and phone number should I put this under?",
     notOnMenu: "Sorry, we don't have that on our menu. Would you like to hear what we do have?",
     found: (n) => `Yes! On the menu we have ${list(n)}.`,
@@ -250,7 +250,7 @@ const T: Record<Lang, {
   },
   es: {
     greet: (n) => `¡Hola! Gracias por contactar a ${n}. Puedo tomar un pedido anticipado para el próximo pop-up o responder preguntas del menú.`,
-    decline: "Lo siento, no puedo ofrecer descuentos ni cambiar nuestras políticas, pero con gusto le ayudo con una reserva o un pedido.",
+    decline: "Lo siento, no puedo ofrecer descuentos ni cambiar nuestras políticas, pero con gusto le ayudo con un pedido anticipado.",
     needContact: "Perfecto. ¿A nombre de quién y con qué número de teléfono?",
     notOnMenu: "Lo siento, eso no está en nuestro menú. ¿Le cuento lo que sí tenemos?",
     found: (n) => `¡Sí! En el menú tenemos ${list(n)}.`,
@@ -264,7 +264,7 @@ const T: Record<Lang, {
   },
   ru: {
     greet: (n) => `Здравствуйте! Спасибо, что написали в ${n}. Я могу принять предзаказ на следующий поп-ап или ответить на вопросы о меню.`,
-    decline: "К сожалению, я не могу предложить скидку или изменить наши правила, но с радостью помогу с бронью или заказом.",
+    decline: "К сожалению, я не могу предложить скидку или изменить наши правила, но с радостью помогу с предзаказом.",
     needContact: "Отлично. На какое имя и какой номер телефона оформить?",
     notOnMenu: "К сожалению, этого нет в нашем меню. Рассказать, что у нас есть?",
     found: (n) => `Да! В меню есть ${list(n)}.`,
@@ -278,7 +278,7 @@ const T: Record<Lang, {
   },
   fr: {
     greet: (n) => `Bonjour ! Merci de contacter ${n}. Je peux prendre une précommande pour le prochain pop-up ou répondre à vos questions sur le menu.`,
-    decline: "Désolé, je ne peux pas offrir de réduction ni changer nos règles, mais je peux vous aider pour une réservation ou une commande.",
+    decline: "Désolé, je ne peux pas offrir de réduction ni changer nos règles, mais je peux vous aider pour une précommande.",
     needContact: "Parfait. À quel nom et quel numéro de téléphone ?",
     notOnMenu: "Désolé, ce plat n'est pas sur notre menu. Voulez-vous que je vous présente ce que nous avons ?",
     found: (n) => `Oui ! Au menu nous avons ${list(n)}.`,

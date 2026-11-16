@@ -60,10 +60,6 @@ export function loadRestaurant(id = process.env.MISE_RESTAURANT || "ruki"): Rest
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-/** HH:MM in a time zone. */
-export const localTime = (d: Date, timeZone = "America/Los_Angeles") =>
-  d.toLocaleTimeString("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hour12: false });
-
 export const weekday = (date: string) => WEEKDAYS[new Date(`${date}T12:00:00Z`).getUTCDay()];
 
 /** Receives every order so it can be saved; replays them on restart. */

@@ -1,6 +1,6 @@
 # Mise
 
-AI ordering agent for a pop-up (Ruki) and a demo restaurant (Fennel & Ash). TypeScript, Express, vitest.
+AI kitchen tool for the Ruki pop-up, with guest preorders. TypeScript, Express, vitest.
 
 ## Commands
 

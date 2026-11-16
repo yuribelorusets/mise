@@ -1,6 +1,6 @@
 # Send orders to a Google Sheet
 
-Most small food businesses already run on a spreadsheet. This sends every order, booking and handoff to one, live, in about five minutes. No Zapier account needed.
+Most small food businesses already run on a spreadsheet. This sends every order and handoff to one, live, in about five minutes. No Zapier account needed.
 
 1. Create a Google Sheet. Open **Extensions → Apps Script**.
 2. Replace the code with the script below. Change `KEY` to a long random string.
@@ -16,7 +16,7 @@ function doPost(e) {
   if (e.parameter.key !== KEY) return ContentService.createTextOutput("forbidden");
   const ev = JSON.parse(e.postData.contents);
   const ss = SpreadsheetApp.getActive();
-  const tab = ev.type === "order.placed" ? "Orders" : ev.type === "reservation.created" ? "Reservations" : "Handoffs";
+  const tab = ev.type === "order.placed" ? "Orders" : "Handoffs";
   const sheet = ss.getSheetByName(tab) || ss.insertSheet(tab);
   if (sheet.getLastRow() === 0) sheet.appendRow(["event id", "time", "channel", "code", "name", "phone", "pickup / when", "items / party", "total", "notes"]);
 
