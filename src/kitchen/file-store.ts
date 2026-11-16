@@ -1,6 +1,12 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { validateCatalog } from "./catalog.js";
 import type { Catalog, KitchenStore, StockEvent } from "./types.js";
+
+function check(c: Catalog, where: string) {
+  const errors = validateCatalog(c);
+  if (errors.length) throw new Error(`Invalid ${where}: ${errors.join(" ")}`);
+}
 
 export class FileStore implements KitchenStore {
   private cat: Catalog;
@@ -12,7 +18,8 @@ export class FileStore implements KitchenStore {
     mkdirSync(dir, { recursive: true });
     this.catalogFile = join(dir, `${kitchen}.catalog.json`);
     this.eventsFile = join(dir, `${kitchen}.stock.jsonl`);
-    this.cat = existsSync(this.catalogFile) ? JSON.parse(readFileSync(this.catalogFile, "utf8")) : structuredClone(seed);
+    this.cat = existsSync(this.catalogFile) ? this.readCatalog() : structuredClone(seed);
+    check(this.cat, existsSync(this.catalogFile) ? this.catalogFile : "the seed catalog");
     if (existsSync(this.eventsFile))
       for (const line of readFileSync(this.eventsFile, "utf8").split("\n")) {
         if (!line.trim()) continue;
@@ -20,9 +27,15 @@ export class FileStore implements KitchenStore {
       }
   }
 
+  private readCatalog(): Catalog {
+    try { return JSON.parse(readFileSync(this.catalogFile, "utf8")); }
+    catch (e) { throw new Error(`Can't read ${this.catalogFile}: ${(e as Error).message}`); }
+  }
+
   catalog(): Catalog { return structuredClone(this.cat); }
 
   saveCatalog(c: Catalog) {
+    check(c, "the catalog");
     const tmp = `${this.catalogFile}.tmp`;
     writeFileSync(tmp, JSON.stringify(c, null, 2));
     renameSync(tmp, this.catalogFile);
