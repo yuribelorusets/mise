@@ -35,5 +35,18 @@ export default defineConfig({
       retries: process.env.CI ? 1 : 0,
       use: { ...devices["Desktop Chrome"], viewport: { width: 375, height: 812 } },
     },
+    {
+      name: "demo",
+      testMatch: "demo.e2e.ts",
+      outputDir: "demo/raw",
+      timeout: 240_000,
+      use: {
+        ...devices["Pixel 7"],
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 1,
+        video: { mode: "on", size: { width: 390, height: 844 } },
+        launchOptions: { slowMo: 250 },
+      },
+    },
   ],
 });

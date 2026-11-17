@@ -41,3 +41,31 @@ export async function seed(request: APIRequestContext): Promise<void> {
     { item: "black-tea", qty: 0.5, unit: "kg" },
   ]);
 }
+
+/** Receives each item once with a price, through assistant cards, so recipes have a cost. Do this before the counts: a count resets what's on hand. */
+export async function seedPrices(request: APIRequestContext): Promise<void> {
+  const prices: [message: string, unitCost: number][] = [
+    ["received 1 kg farmer's cheese", 9],
+    ["received 1 kg sour cream", 6],
+    ["received 1 dozen eggs", 7],
+    ["received 1 kg jam", 12],
+    ["received 1 kg flour", 1.5],
+    ["received 1 kg sugar", 2],
+  ];
+  for (const [message, unitCost] of prices) {
+    const turn = await request.post("/api/kitchen/assistant", { data: { sessionId: `e2e-prices-${unitCost}-${Date.now()}`, message } });
+    expect(turn.ok()).toBeTruthy();
+    const card = (await turn.json()).proposals[0];
+    expect(card, message).toBeTruthy();
+    const lines = card.lines.map((l: object) => ({ ...l, unitCost }));
+    const done = await request.post(`/api/kitchen/proposals/${card.id}/confirm`, { data: { lines } });
+    expect(done.ok(), message).toBeTruthy();
+  }
+}
+
+/** Places a guest preorder in the chat API, in one message. */
+export async function guestOrder(request: APIRequestContext, who: string, phone: string, time: string, items = "2 syrniki"): Promise<void> {
+  const res = await request.post("/api/chat", { data: { sessionId: `e2e-guest-${phone}`, message: `Can I preorder ${items} for pickup at ${time}? ${who}, ${phone}` } });
+  expect(res.ok()).toBeTruthy();
+  expect((await res.json()).reply).toMatch(/RK-[A-Z0-9]{6}/);
+}
