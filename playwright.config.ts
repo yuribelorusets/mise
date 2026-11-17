@@ -26,6 +26,9 @@ export default defineConfig({
       DATA_DIR: mkdtempSync(join(tmpdir(), "mise-e2e-")),
       MISE_OWNER_PASSCODE: PASSCODE,
       ANTHROPIC_API_KEY: "",
+      CRM_WEBHOOK_URL: "",
+      CRM_WEBHOOK_SECRET: "",
+      ADMIN_TOKEN: "",
     },
   },
   projects: [
