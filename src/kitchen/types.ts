@@ -1,4 +1,4 @@
-// Shared kitchen types. Wave 1 builds against these; change them only through the orchestrator.
+// Shared kitchen types. Every package builds against these, so change them only between packages, not inside one.
 
 export type BaseUnit = "g" | "ml" | "each";
 
