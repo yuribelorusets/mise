@@ -62,20 +62,22 @@ function checkMakes(config: RestaurantConfig, catalog: Catalog) {
   }
 }
 
-/** How many more orders the kitchen can make of a menu item, remembered until stock, orders or the catalog change. */
+/** How many more orders the kitchen can make of a menu item. Nothing is computed unless the pop-up sells from stock. */
 function kitchenCapacity(config: RestaurantConfig, kitchen: KitchenStore, orders: () => readonly Order[]) {
-  const cache = new Map<string, { key: string; value: number }>();
+  let logged = false;
   return (m: MenuItem): number | undefined => {
-    if (!m.makes) return undefined;
-    const c = kitchen.catalog();
-    const key = `${kitchen.events().length}:${orders().length}:${JSON.stringify(c).length}`;
-    const hit = cache.get(m.id);
-    if (hit?.key === key) return hit.value;
-    const plan = c.plans.find((p) => p.date === config.popup.eventDate);
-    const planned = planLines(plan, config.popup.eventDate, orders(), config.menu);
-    const value = orderCapacity(c, totals(onHand(kitchen.events())), planned, m.makes);
-    cache.set(m.id, { key, value });
-    return value;
+    if (!m.makes || config.popup.sellFromStock !== true) return undefined;
+    try {
+      const c = kitchen.catalog();
+      const plan = c.plans.find((p) => p.date === config.popup.eventDate);
+      const planned = planLines(plan, config.popup.eventDate, orders(), config.menu);
+      return orderCapacity(c, totals(onHand(kitchen.events())), planned, m.makes);
+    } catch (err) {
+      // A catalog edit can remove what the menu item makes. Don't take the menu down: sell on the menu quantity alone.
+      if (!logged) console.error(`Can't work out what "${m.id}" can be made from stock, so only its menu quantity limits it:`, err);
+      logged = true;
+      return undefined;
+    }
   };
 }
 

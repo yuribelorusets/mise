@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import type { Server } from "node:http";
 import { createApp } from "../../src/server.js";
@@ -261,5 +261,75 @@ describe("selling from stock, through the app", () => {
     s.close();
     expect(replies.slice(0, 3).join("\n")).not.toMatch(/sold out|only|left/i);
     expect(replies[3]).toMatch(/sold out|only 0|0 left/i);
+  });
+});
+
+describe("stock limits when the owner edits the catalog", () => {
+  const base = loadRestaurant("ruki");
+  const config = { ...base, popup: { ...base.popup, sellFromStock: true } };
+  // Per order: 75 g cheese, 0.3 eggs, 15 g flour, 6 g sugar, 40 g sour cream, 30 g jam. Enough for ten, not eleven.
+  const have: [string, number][] = [["farmers-cheese", 790], ["eggs", 3.2], ["flour", 160], ["sugar", 64], ["sour-cream", 420], ["jam", 315]];
+  const planOf = (qty: number): Catalog => ({ ...ruki, plans: [{ id: "p", date: "2026-12-05", lines: [{ item: "syrniki", qty, unit: "order", source: "manual" }] }] });
+  const stocked = (c: Catalog) => {
+    const k = new MemoryStore(c);
+    k.append(have.map(([item, qty]) => ({ id: `s-${item}`, at: "2026-12-01T10:00:00Z", kind: "receive" as const, item, location: "walk-in", qty, source: "manual" as const })));
+    return k;
+  };
+  const llm: LLM = {
+    name: "scripted",
+    async complete(req): Promise<LLMResponse> {
+      const last = req.messages.at(-1)!;
+      if (typeof last.content === "string") {
+        const search = last.content === "search";
+        const input = search
+          ? { query: "syrniki" }
+          : { name: "Guest", phone: last.content, items: [{ item: "syrniki", quantity: 1 }], pickupTime: "11:00" };
+        return { stop_reason: "tool_use", content: [{ type: "tool_use", id: `t${Math.random()}`, name: search ? "search_menu" : "place_order", input }] };
+      }
+      return { stop_reason: "end_turn", content: [{ type: "text", text: last.content.map((b) => (b.type === "tool_result" ? b.content : "")).join("") }] };
+    },
+  };
+  async function serve(kitchenStore: MemoryStore) {
+    process.env.MISE_TODAY = "2026-12-04";
+    const app = createApp({ config, llm, webhook: new WebhookClient({ url: "", fallbackFile: null }), kitchen: kitchenStore, limits: { perMinute: 1000 } });
+    const s = await new Promise<Server>((r) => { const x = app.listen(0, () => r(x)); });
+    const a = s.address();
+    const url = `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}`;
+    let n = 0;
+    const say = async (message: string) => {
+      const res = await fetch(`${url}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: `e-${n++}`, message }) });
+      return { status: res.status, reply: String((await res.json()).reply) };
+    };
+    return { say, close: () => s.close() };
+  }
+  const remaining = (reply: string) => Number(/"remaining":\s*(\d+)/.exec(reply)?.[1]);
+
+  it("follows a plan edit that keeps the catalog the same size", async () => {
+    const k = stocked(planOf(4));
+    const app = await serve(k);
+    expect(remaining((await app.say("search")).reply)).toBe(6);
+    k.saveCatalog(planOf(6));
+    expect(remaining((await app.say("search")).reply)).toBe(4);
+    app.close();
+  });
+
+  it("falls back to the menu quantity when the kitchen item has been removed", async () => {
+    const k = stocked(planOf(4));
+    const app = await serve(k);
+    const gone = planOf(4);
+    gone.recipes = gone.recipes.filter((r) => r.makes !== "syrniki");
+    gone.items = gone.items.filter((i) => i.id !== "syrniki");
+    gone.plans = [];
+    k.saveCatalog(gone);
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const search = await app.say("search");
+    expect(search.status).toBe(200);
+    expect(remaining(search.reply)).toBe(40);
+    const order = await app.say("510-555-0401");
+    expect(order.status).toBe(200);
+    expect(order.reply).not.toMatch(/error/i);
+    expect(err).toHaveBeenCalledTimes(1);
+    err.mockRestore();
+    app.close();
   });
 });
