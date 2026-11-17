@@ -1,6 +1,6 @@
 # Testing
 
-There are four kinds of checks: unit tests, web tests, evals and a load test. None of them costs money on the mock. Evals call Claude when `ANTHROPIC_API_KEY` is set and I leave out `--llm mock`. Install with `npm ci` and `npm --prefix web ci`.
+There are five kinds of checks: unit tests, web tests, browser tests, evals and a load test. None of them costs money on the mock. Evals call Claude when `ANTHROPIC_API_KEY` is set and I leave out `--llm mock`. Install with `npm ci` and `npm --prefix web ci`.
 
 ## Unit tests
 
@@ -33,6 +33,17 @@ npm run web:build
 
 `web:test` runs vitest with jsdom inside `web/`. Each screen except sign-in has a test next to it, and so do the quantity input, the tab bar and the proposal card. `web/src/test/fake-api.ts` stands in for the server and `web/src/test/render.tsx` renders a screen with the router and React Query set up. `web:build` type-checks the app and builds it into `web/dist`.
 
+## Browser tests
+
+```
+npm run web:build
+npm run e2e
+```
+
+`npm run e2e` runs the Playwright smoke project (`e2e/smoke.e2e.ts`, config in `playwright.config.ts`) in headless Chromium. Playwright starts the real server on port 3300 with the mock model, a fresh temp data directory and a frozen `MISE_TODAY`, with the CRM webhook and `ANTHROPIC_API_KEY` blanked, so it never calls out. It needs the built app (`npm run web:build`) and a one-time `npx playwright install chromium`. The tests walk the paths a unit test can't: signing in, a reload on `/count` (the index fallback), a saved count showing on Stock, a card confirmed, a card going stale and refreshing, a discard, a new item added without touching `eggs`, and a guest order appearing on Today and Plan. CI runs it, retries a failure once, and keeps the trace of a failed run.
+
+`npm run demo` runs a second Playwright project, `e2e/demo.e2e.ts`, which isn't a test of anything: it walks the app on seeded data and writes the dark-mode screenshots in `docs/demo/`. See `docs/demo/README.md`.
+
 ## Evals
 
 ```
@@ -41,7 +52,7 @@ npm run eval -- --llm mock
 
 An eval is a scripted conversation, graded on what ended up in the system. Scenarios are YAML in `evals/scenarios/`: `ruki.yaml` and `redteam.yaml` for guests, `kitchen.yaml` for the owner's assistant. The runner is `src/evals/run.ts` and the graders are `src/evals/graders.ts`.
 
-A scenario sets up orders, stock or plans, sends turns, and says what must be true at the end. The first kind of check is the end state: how many orders were placed, what the last one contained, which proposals are open and what lines they have, and that no stock event was written without a confirm. The second is loose reply checks, which match meaning rather than exact words. Kitchen scenarios also check that every number in a reply came from a tool result.
+A scenario sets up orders, stock or plans, sends turns, and says what must be true at the end. The first kind of check is the end state: how many orders were placed, what the last one contained, which proposals are open and what lines they have, and that no stock event was written without a confirm. The second is loose reply checks, which match meaning rather than exact words: `reply_matches` for what must be said, and `reply_must_not_match` for a regex it must not match. Words alone mislead. A check for "booked" fails on "It isn't booked yet", so `kitchen-no-booking-claim` matches claims ("I've booked", "it's done") instead. Both are regexes, with `(?i)` for case. Kitchen scenarios also check that every number in a reply came from a tool result.
 
 Without `--llm mock` the runner uses Claude if `ANTHROPIC_API_KEY` is set, and that costs money. I only run it that way on purpose.
 
