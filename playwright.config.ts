@@ -31,7 +31,7 @@ export default defineConfig({
   projects: [
     {
       name: "smoke",
-      testMatch: "smoke.spec.ts",
+      testMatch: "smoke.e2e.ts",
       retries: process.env.CI ? 1 : 0,
       use: { ...devices["Desktop Chrome"], viewport: { width: 375, height: 812 } },
     },
