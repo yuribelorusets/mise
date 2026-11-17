@@ -98,18 +98,20 @@ test("discarding a card leaves a Discarded stub", async ({ page }) => {
   await expect(page.getByText(/^Discarded/)).toBeVisible();
 });
 
-test("a new-item offer adds sumac with the id sumac, and eggs keep their units", async ({ page, request }) => {
+test("a new-item offer adds sumac with the id sumac, and eggs keep their units", async ({ page, request }, testInfo) => {
+  // A retry runs against the same server, where sumac now exists, so later attempts use another spice.
+  const spice = testInfo.retry === 0 ? "sumac" : `sumac${"x".repeat(testInfo.retry)}`;
   await signIn(page);
   await page.getByRole("link", { name: "Ask the assistant" }).click();
-  await ask(page, "received 3 kg sumac");
+  await ask(page, `received 3 kg ${spice}`);
   const offer = page.getByRole("group", { name: "New item" });
-  await expect(offer).toContainText("sumac");
+  await expect(offer).toContainText(spice);
   await offer.getByRole("button", { name: /^Add/ }).click();
   await expect(offer.getByText(/Added/)).toBeVisible();
 
   const catalog = await (await request.get("/api/kitchen/catalog")).json();
-  const sumac = catalog.items.find((i: { id: string }) => i.id === "sumac");
-  expect(sumac).toMatchObject({ id: "sumac", baseUnit: "g" });
+  const sumac = catalog.items.find((i: { id: string }) => i.id === spice);
+  expect(sumac).toMatchObject({ id: spice, baseUnit: "g" });
   const eggs = catalog.items.find((i: { id: string }) => i.id === "eggs");
   expect(eggs.units).toEqual({ case: 180, dozen: 12 });
 });
