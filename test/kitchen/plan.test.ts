@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import { explode } from "../../src/kitchen/plan.js";
+import { explode, roundEachUp } from "../../src/kitchen/plan.js";
 import { maxBatch } from "../../src/kitchen/cost.js";
 import type { PlanLine } from "../../src/kitchen/types.js";
 import { syrnikiCatalog as c } from "./fixtures.js";
@@ -50,6 +50,24 @@ describe("explode", () => {
     const r = explode(c, plan(10), { syrniki: 30 });
     expect(r.prep).toEqual([]);
     expect(r.shopping).toEqual([]);
+  });
+});
+
+describe("roundEachUp", () => {
+  it("rounds what's needed and what's bought up to whole units for things counted each", () => {
+    const r = roundEachUp(c, explode(c, plan(45), { eggs: 6 }).shopping);
+    expect(r).toContainEqual(expect.objectContaining({ item: "eggs", need: 14, have: 6, buy: 8, buyQty: 1 }));
+  });
+  it("leaves weights and what's on hand as they are", () => {
+    const r = roundEachUp(c, explode(c, plan(45), { eggs: 5.5, cheese: 0.5 }).shopping);
+    expect(r).toEqual([
+      { item: "cheese", need: 3375, have: 0.5, buy: 3374.5 },
+      { item: "eggs", need: 14, have: 5.5, buy: 8, buyUnit: "case", buyQty: 1, buyUnitBase: 180, buyBase: 180 },
+    ]);
+  });
+  it("doesn't round float error up to another egg", () => {
+    const [line] = roundEachUp(c, [{ item: "eggs", need: 12.000000000001, have: 0, buy: 12.000000000001 }]);
+    expect(line).toMatchObject({ need: 12, buy: 12 });
   });
 });
 

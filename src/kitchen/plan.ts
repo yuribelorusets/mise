@@ -9,6 +9,25 @@ export interface PlanResult { prep: PrepTask[]; shopping: ShoppingLine[]; uses: 
 /** The biggest item-specific unit, e.g. "case" for eggs, used to round the shopping list up. */
 const purchaseUnit = (item: Item) => Object.entries(item.units).sort((a, b) => b[1] - a[1])[0];
 
+/** Whole units up, ignoring float error: 12.000000000001 stays 12. */
+const ceilish = (n: number) => Math.ceil(n * (1 - 1e-9));
+
+/**
+ * The shopping list as it's shown and bought: amounts of things counted `each` go up to whole units.
+ * Stock and `explode` keep the exact amounts, so costs and batch sizes aren't skewed by the rounding.
+ */
+export function roundEachUp(c: Catalog, shopping: ShoppingLine[]): ShoppingLine[] {
+  return shopping.map((line) => {
+    const item = itemById(c, line.item);
+    if (item.baseUnit !== "each") return line;
+    const buy = ceilish(line.buy);
+    const pu = purchaseUnit(item);
+    if (!pu) return { ...line, need: ceilish(line.need), buy };
+    const buyQty = Math.max(1, ceilish(buy / pu[1]));
+    return { ...line, need: ceilish(line.need), buy, buyQty, buyBase: buyQty * pu[1] };
+  });
+}
+
 export function explode(c: Catalog, lines: PlanLine[], available: Record<string, number>): PlanResult {
   const bare = (): Record<string, number> => Object.create(null);
   const have = Object.assign(bare(), available);

@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler } from "express";
 import { findItem, itemIdFor, validateCatalog } from "./catalog.js";
 import { batchCost, maxBatch } from "./cost.js";
-import { explode, type PlanResult, type PrepTask, type ShoppingLine } from "./plan.js";
+import { explode, roundEachUp, type PlanResult, type PrepTask, type ShoppingLine } from "./plan.js";
 import { checkLine, ProposalError, MAX_LINES, type ProposalBook } from "./proposals.js";
 import { onHand, totals, type OnHand } from "./stock.js";
 import { toBase, UnitError } from "./units.js";
@@ -80,7 +80,7 @@ export function kitchenRouter(deps: KitchenApiDeps) {
   const resultWithNames = (c: Catalog, r: PlanResult) => ({
     ...r,
     prep: r.prep.map((t) => ({ ...t, recipeName: c.recipes.find((x) => x.id === t.recipe)?.name ?? t.recipe })),
-    shopping: r.shopping.map((s) => ({ ...s, name: nameOf(c, s.item) })),
+    shopping: roundEachUp(c, r.shopping).map((s) => ({ ...s, name: nameOf(c, s.item) })),
   });
   /** The stored plans with each date's preorders added, plus a plan made on the fly for a date that only has preorders. */
   const plansByDate = (c: Catalog): ProductionPlan[] => {

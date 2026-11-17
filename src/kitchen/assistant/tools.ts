@@ -1,7 +1,7 @@
 import type { ToolSpec } from "../../llm/types.js";
 import { findItem, itemIdFor } from "../catalog.js";
 import { batchCost, maxBatch } from "../cost.js";
-import { explode } from "../plan.js";
+import { explode, roundEachUp } from "../plan.js";
 import { onHand, totals } from "../stock.js";
 import { toBase } from "../units.js";
 import { ProposalError, cleanLine, type ProposalBook } from "../proposals.js";
@@ -155,7 +155,7 @@ function readTool(name: string, input: Record<string, unknown>, ctx: KitchenTool
     case "shopping_list": {
       const plan = planFor(c, ctx.today, input.date);
       if (!plan) return ok({ date: null, lines: [], note: input.date ? `No production plan on ${String(input.date)}.` : "No production plan ahead." });
-      const { shopping } = explode(c, plan.lines, totals(onHand(ctx.store.events())));
+      const shopping = roundEachUp(c, explode(c, plan.lines, totals(onHand(ctx.store.events()))).shopping);
       const lines = shopping.map((s) => {
         const item = resolve(c, s.item);
         return { item: s.item, name: item.name, baseUnit: item.baseUnit, need: s.need, have: s.have, buy: s.buy, ...(s.buyQty !== undefined ? { buyQty: s.buyQty, buyUnit: s.buyUnit, buyUnitBase: s.buyUnitBase, buyBase: s.buyBase } : {}) };

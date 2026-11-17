@@ -28,6 +28,12 @@ describe("kitchen read tools", () => {
     expect(got.lines.map((l) => [l.item, l.buy])).toEqual(want.map((l) => [l.item, l.buy]));
   });
 
+  it("gives whole eggs on the shopping list", () => {
+    const c = ctx([ev("eggs", 6)], { ...ruki, plans: [{ ...saturday, lines: [{ ...saturday.lines[0], qty: 45 }] }] });
+    const got = runKitchenTool("shopping_list", {}, c).content as { lines: { item: string; need: number; buy: number }[] };
+    expect(got.lines.find((l) => l.item === "eggs")).toMatchObject({ need: 14, buy: 8 });
+  });
+
   it("passes the buy unit size through on the shopping list", () => {
     const got = runKitchenTool("shopping_list", {}, ctx()).content as { lines: { item: string; buyQty?: number; buyUnitBase?: number; buyBase?: number }[] };
     const eggs = got.lines.find((l) => l.item === "eggs")!;

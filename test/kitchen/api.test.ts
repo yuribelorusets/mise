@@ -160,6 +160,20 @@ describe("kitchen API", () => {
     expect(result.prep.map((t: { recipe: string; qty: number }) => [t.recipe, t.qty])).toEqual(expected.map((t) => [t.recipe, t.qty]));
   });
 
+  it("shows whole amounts on the plan result for things counted each", async () => {
+    // At 0.3 eggs an order, 10001 orders need 3000.3 eggs: fractional, and more than earlier tests leave on hand.
+    const plan = { id: "plan-each-rounding", date: "2026-12-19", lines: [{ item: "syrniki", qty: 10001, unit: "order", source: "manual" }] };
+    expect((await post("/catalog/plans", plan)).status).toBe(200);
+    try {
+      const result = await (await kitchen("/plans/plan-each-rounding/result")).json();
+      const eggs = result.shopping.find((s: { item: string }) => s.item === "eggs");
+      expect(eggs).toBeDefined();
+      expect([eggs.need, eggs.buy].every(Number.isInteger)).toBe(true);
+    } finally {
+      await kitchen("/catalog/plans/plan-each-rounding", { method: "DELETE" });
+    }
+  });
+
   it("makes a plan on the fly for a date with preorders and no plan", async () => {
     const other = new RestaurantStore({ ...loadRestaurant("ruki"), popup: { ...loadRestaurant("ruki").popup, eventDate: "2026-12-12" } });
     other.placeOrder({ name: "Sam", phone: "510-555-0202", items: [{ item: "syrniki", quantity: 1 }], pickupTime: "11:00" }, new Date("2026-12-04T18:00:00-08:00"));
