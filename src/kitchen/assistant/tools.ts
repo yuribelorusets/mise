@@ -181,9 +181,9 @@ function readTool(name: string, input: Record<string, unknown>, ctx: KitchenTool
       const qty = amount(input.qty);
       if (!(qty > 0)) throw new ToolError("The amount must be more than 0.");
       const unit = str(input.unit, "The unit");
-      toBase(item, qty, unit);
+      const base = toBase(item, qty, unit);
       const r = batchCost(c, ctx.store.events(), item.id, qty, unit);
-      return ok({ item: item.id, name: item.name, qty, unit, cost: r.cost, perUnit: round2(r.cost / qty), missing: r.missing.map((id) => c.items.find((i) => i.id === id)?.name ?? id) });
+      return ok({ item: item.id, name: item.name, qty, unit, base, baseUnit: item.baseUnit, cost: r.cost, perUnit: round2(r.cost / qty), missing: r.missing.map((id) => c.items.find((i) => i.id === id)?.name ?? id) });
     }
   }
   return fail(`Unknown tool "${name}".`);

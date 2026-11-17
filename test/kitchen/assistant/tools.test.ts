@@ -59,6 +59,11 @@ describe("kitchen read tools", () => {
     expect(r.perUnit).toBeCloseTo(r.cost / 10, 2);
   });
 
+  it("gives the costed amount in base units", () => {
+    expect(runKitchenTool("cost", { item: "syrniki", qty: 1, unit: "order" }, ctx()).content).toMatchObject({ base: 3, baseUnit: "each" });
+    expect(runKitchenTool("cost", { item: "flour", qty: 2, unit: "kg" }, ctx()).content).toMatchObject({ base: 2000, baseUnit: "g" });
+  });
+
   it("explains a unit that doesn't convert", () => {
     const r = runKitchenTool("cost", { item: "eggs", qty: 2, unit: "kg" }, ctx());
     expect(r.isError).toBe(true);
