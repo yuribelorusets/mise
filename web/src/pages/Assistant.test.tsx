@@ -67,16 +67,34 @@ test("the conversation survives a reload of the tab", async () => {
   expect(screen.getByText("two cases eggs")).toBeInTheDocument();
 });
 
-test("an offer to add an item posts it, and says to repeat the change", async () => {
+test("an offer to add an item creates it by name and unit, and says to repeat the change", async () => {
   const saved: unknown[] = [];
-  serve({ "POST /api/kitchen/assistant": () => beetsReply, "POST /api/kitchen/catalog/items": (b) => (saved.push(b), stockCatalog) });
+  const replaced: unknown[] = [];
+  serve({
+    "POST /api/kitchen/assistant": () => beetsReply,
+    "POST /api/kitchen/items": (b) => (saved.push(b), { id: "pickled-beets", ...b }),
+    "POST /api/kitchen/catalog/items": (b) => (replaced.push(b), stockCatalog),
+  });
   renderWith(<Assistant />);
   await send("6 jars pickled beets");
   const offer = await screen.findByRole("group", { name: "New item" });
   await userEvent.click(within(offer).getByRole("button", { name: "Add Pickled beets (g)" }));
-  await waitFor(() => expect(saved).toEqual([{ id: "pickled-beets", name: "Pickled beets", aliases: [], baseUnit: "g", units: {}, allergens: [] }]));
+  await waitFor(() => expect(saved).toEqual([{ name: "Pickled beets", baseUnit: "g" }]));
+  expect(replaced).toEqual([]);
   expect(await within(offer).findByText(/added/i)).toBeInTheDocument();
   expect(within(offer).getByText(/repeat the change/i)).toBeInTheDocument();
+});
+
+test("an offer whose id is taken says so on the card", async () => {
+  serve({
+    "POST /api/kitchen/assistant": () => beetsReply,
+    "POST /api/kitchen/items": () => ({ status: 409, error: "That's already in the catalog as \"pickled-beets\" (Pickled beets)." }),
+  });
+  renderWith(<Assistant />);
+  await send("6 jars pickled beets");
+  const offer = await screen.findByRole("group", { name: "New item" });
+  await userEvent.click(within(offer).getByRole("button", { name: "Add Pickled beets (g)" }));
+  expect(await within(offer).findByRole("alert")).toHaveTextContent("That's already in the catalog as");
 });
 
 test("a failed turn shows the server's error and keeps what was typed", async () => {

@@ -96,6 +96,26 @@ describe("kitchen API", () => {
     expect((await kitchen("/catalog/items/nope", { method: "DELETE" })).status).toBe(404);
   });
 
+  it("adds an item only when its id is free, and never takes an id from the body", async () => {
+    const before = kitchenStore.catalog().items.length;
+    const res = await post("/items", { id: "eggs", name: "Сумах", baseUnit: "g" });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ id: "sumakh", name: "Сумах", aliases: [], baseUnit: "g", units: {}, allergens: [] });
+    expect(kitchenStore.catalog().items).toHaveLength(before + 1);
+    const eggs = structuredClone(kitchenStore.catalog().items.find((i) => i.id === "eggs"));
+    const again = await post("/items", { name: "Sumakh", baseUnit: "g" });
+    expect(again.status).toBe(409);
+    expect((await again.json()).error).toMatch(/already in the catalog as "sumakh"/);
+    expect((await post("/items", { name: "Eggs!", baseUnit: "ml" })).status).toBe(409);
+    expect(kitchenStore.catalog().items.find((i) => i.id === "eggs")).toEqual(eggs);
+    expect(kitchenStore.catalog().items).toHaveLength(before + 1);
+    expect((await post("/items", { name: "🥚", baseUnit: "g" })).status).toBe(422);
+    expect((await post("/items", { name: "Dill", baseUnit: "bunch" })).status).toBe(422);
+    expect((await post("/items", { baseUnit: "g" })).status).toBe(422);
+    expect((await fetch(`${base}/api/kitchen/items`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Dill", baseUnit: "g" }) })).status).toBe(401);
+    await kitchen("/catalog/items/sumakh", { method: "DELETE" });
+  });
+
   it("shows preorders on Today without phones, notes or last names", async () => {
     restaurant.placeOrder({ name: "Anna Petrova", phone: "510-555-0101", items: [{ item: "syrniki", quantity: 2 }], pickupTime: "11:00", notes: "gate code 1234" }, new Date("2026-12-04T18:00:00-08:00"));
     const today = await (await kitchen("/today")).json();

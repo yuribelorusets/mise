@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { ApiError, apiDelete, apiGet, apiPost } from "./client";
 import { keys } from "./keys";
 import type {
-  AssistantReply, Catalog, ConfirmResult, CostResult, PlanResult, ProductionPlan, ProposalLine, ProposalView,
+  AssistantReply, BaseUnit, Catalog, Item, ConfirmResult, CostResult, PlanResult, ProductionPlan, ProposalLine, ProposalView,
   PublicConfig, StockEvent, StockView, TodayView,
 } from "./types";
 
@@ -151,6 +151,15 @@ export function useSaveRecord(kind: RecordKind) {
   return useMutation({
     mutationFn: (record: { id: string }) => apiPost<Catalog>(`/api/kitchen/catalog/${kind}`, record),
     onSuccess: (catalog) => afterCatalogChange(qc, catalog),
+  });
+}
+
+/** Creates an item from a name and base unit. The server makes the id and refuses one that's taken. */
+export function useAddItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (offer: { name: string; baseUnit: BaseUnit }) => apiPost<Item>("/api/kitchen/items", { name: offer.name, baseUnit: offer.baseUnit }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.catalog }),
   });
 }
 

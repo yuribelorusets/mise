@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useAssistantTurn, useCatalog, useProposals, useSaveRecord } from "../api/hooks";
+import { useAddItem, useAssistantTurn, useCatalog, useProposals } from "../api/hooks";
 import type { NewItemOffer, ProposalView } from "../api/types";
 import ProposalCard from "../components/ProposalCard";
 import "./Assistant.css";
@@ -34,10 +34,8 @@ function loadMessages(): Message[] {
   }
 }
 
-const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-
 function Offer({ offer }: { offer: NewItemOffer }) {
-  const save = useSaveRecord("items");
+  const save = useAddItem();
   const [state, setState] = useState<"added" | "skipped">();
   return (
     <div className="chat__create" role="group" aria-label="New item">
@@ -57,12 +55,7 @@ function Offer({ offer }: { offer: NewItemOffer }) {
               type="button"
               className="btn btn--primary"
               disabled={save.isPending}
-              onClick={() =>
-                save.mutate(
-                  { id: slug(offer.name), name: offer.name, aliases: [], baseUnit: offer.baseUnit, units: {}, allergens: [] } as { id: string },
-                  { onSuccess: () => setState("added") },
-                )
-              }
+              onClick={() => save.mutate({ name: offer.name, baseUnit: offer.baseUnit }, { onSuccess: () => setState("added") })}
             >
               Add {offer.name} ({offer.baseUnit})
             </button>

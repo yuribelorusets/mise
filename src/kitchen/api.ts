@@ -1,5 +1,5 @@
 import express, { type ErrorRequestHandler } from "express";
-import { validateCatalog } from "./catalog.js";
+import { itemIdFor, validateCatalog } from "./catalog.js";
 import { batchCost, maxBatch } from "./cost.js";
 import { explode, type PlanResult, type PrepTask, type ShoppingLine } from "./plan.js";
 import { checkLine, ProposalError, MAX_LINES, type ProposalBook } from "./proposals.js";
@@ -114,6 +114,26 @@ export function kitchenRouter(deps: KitchenApiDeps) {
     store.saveCatalog(next);
     res.json(store.catalog());
   };
+  // Creates an item from a name and base unit. The id is made here, and an id that's taken is refused rather than replaced.
+  router.post("/items", (req, res) => {
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    const baseUnit = req.body?.baseUnit;
+    const refuse = (error: string) => void res.status(422).json({ error, errors: [error] });
+    if (!name || name.length > 60) return refuse("An item name must be 1 to 60 characters.");
+    if (baseUnit !== "g" && baseUnit !== "ml" && baseUnit !== "each") return refuse("The base unit must be g, ml or each.");
+    const id = itemIdFor(name);
+    if (!id) return refuse("I can't make an id from that name. Name it in letters or digits.");
+    const c = store.catalog();
+    const taken = c.items.find((i) => i.id === id);
+    if (taken) return void res.status(409).json({ error: `That's already in the catalog as "${taken.id}" (${taken.name}).`, existing: taken.id });
+    const item = { id, name, aliases: [], baseUnit, units: {}, allergens: [] };
+    const next = structuredClone(c);
+    next.items.push(item);
+    const errors = validateCatalog(next);
+    if (errors.length) return void res.status(422).json({ error: errors.join(" "), errors });
+    store.saveCatalog(next);
+    res.status(201).json(item);
+  });
   router.post("/catalog/:kind", (req, res) => {
     const kind = kindOf(req.params.kind);
     const rec = req.body;
