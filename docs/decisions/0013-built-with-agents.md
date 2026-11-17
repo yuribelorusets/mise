@@ -15,4 +15,4 @@ I build with Claude Code. I wanted the history to read like real work: small ste
 
 ## Consequences
 
-Two read-only reviews cost about half of one build, and they've caught real problems: test coverage silently dropped in a cleanup, a spending cap that didn't count part of the spend, and guest details that stayed visible after the retention cleanup. Costs are measured per agent run and written up in `docs/agents.md`.
+A round of read-only reviews costs about as much as one builder's first pass, and they've caught real problems: test coverage silently dropped in a cleanup, a spending cap that didn't count part of the spend, and guest details that stayed visible after the retention cleanup. Costs are measured per agent run and written up in `docs/agents.md`.
