@@ -187,13 +187,13 @@ describe("wave-2 pass", () => {
   });
 
   // Backlog: "An offered item's id can replace an item that's already there."
-  it.fails("doesn't offer a new item whose id is an existing item's id", () => {
-    // The screen saves { id: slug(name) }, and /catalog/items replaces a record with the same id.
+  it("doesn't offer a new item whose id is an existing item's id", () => {
+    // "Eggs!" makes the id "eggs", which is taken.
     expect(runKitchenTool("offer_new_item", { name: "Eggs!", baseUnit: "ml" }, ctx()).isError).toBe(true);
   });
 
-  it.fails("doesn't offer a new item whose id would be empty", () => {
-    // slug("Сумах") is "", which the catalog route refuses, so Add can't work for a Russian name.
-    expect(runKitchenTool("offer_new_item", { name: "Сумах", baseUnit: "g" }, ctx()).isError).toBe(true);
+  it("doesn't offer a new item whose id would be empty", () => {
+    // Russian names are transliterated now, so only a name with no letters or digits has no id.
+    expect(runKitchenTool("offer_new_item", { name: "🥚", baseUnit: "g" }, ctx()).isError).toBe(true);
   });
 });

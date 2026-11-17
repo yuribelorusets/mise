@@ -249,9 +249,14 @@ function offer(input: Record<string, unknown>, ctx: KitchenToolContext): Kitchen
   const c = ctx.store.catalog();
   const known = c.items.find((i) => i.id === name) ?? findItem(c, name);
   if (known) throw new ToolError(`${known.name} is already in the catalog as "${known.id}". Use that.`);
+  const id = itemIdFor(name);
+  if (!id) throw new ToolError("I can't make an id from that name. Ask the owner to name it in letters or digits.");
+  const taken = c.items.find((i) => i.id === id);
+  if (taken) throw new ToolError(`${taken.name} is already in the catalog as "${taken.id}". Use that.`);
+  if (ctx.offers.some((o) => o.id === id)) throw new ToolError(`${name} is already offered.`);
   if (ctx.offers.some((o) => o.name.toLowerCase() === name.toLowerCase())) throw new ToolError(`${name} is already offered.`);
   if (ctx.offers.length >= 5) throw new ToolError("That's enough new items for one message. Ask the owner to deal with these first.");
-  const o: NewItemOffer = { id: itemIdFor(name), name, baseUnit: input.baseUnit as BaseUnit, ...(typeof input.raw === "string" ? { raw: input.raw.slice(0, 200) } : {}) };
+  const o: NewItemOffer = { id, name, baseUnit: input.baseUnit as BaseUnit, ...(typeof input.raw === "string" ? { raw: input.raw.slice(0, 200) } : {}) };
   ctx.offers.push(o);
   return ok({ offered: true, added: false, note: "Nothing is added until the owner taps Add." });
 }

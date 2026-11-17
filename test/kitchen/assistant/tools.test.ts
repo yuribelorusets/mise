@@ -58,3 +58,24 @@ describe("kitchen read tools", () => {
     expect(JSON.stringify(r.content)).toMatch(/kg/);
   });
 });
+
+describe("offer_new_item ids", () => {
+  it("offers a Russian name under a transliterated id", () => {
+    const c = ctx();
+    expect(runKitchenTool("offer_new_item", { name: "Сумах", baseUnit: "g" }, c).isError).toBe(false);
+    expect(c.offers).toEqual([{ id: "sumakh", name: "Сумах", baseUnit: "g" }]);
+  });
+
+  it("refuses an id an item already has, naming that item", () => {
+    const r = runKitchenTool("offer_new_item", { name: "Eggs!", baseUnit: "each" }, ctx());
+    expect(r.isError).toBe(true);
+    expect(JSON.stringify(r.content)).toMatch(/Eggs is already in the catalog/);
+  });
+
+  it("refuses a second offer with the same id in one turn", () => {
+    const c = ctx();
+    expect(runKitchenTool("offer_new_item", { name: "Sumac?", baseUnit: "g" }, c).isError).toBe(false);
+    expect(runKitchenTool("offer_new_item", { name: "sumac!", baseUnit: "g" }, c).isError).toBe(true);
+    expect(c.offers).toHaveLength(1);
+  });
+});
