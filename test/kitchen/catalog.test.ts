@@ -70,6 +70,16 @@ describe("itemIdFor", () => {
     expect(itemIdFor("Творог 9%")).toBe("tvorog-9");
     expect(itemIdFor("Ёж Щука Юла Яма Чай Шея Цех Жук Подъезд Соль Йод")).toBe("ezh-shchuka-yula-yama-chai-sheya-tsekh-zhuk-podezd-sol-iod");
   });
+  it("drops accents and keeps the letter", () => {
+    expect(itemIdFor("Crème fraîche")).toBe("creme-fraiche");
+    expect(itemIdFor("Jalapeño")).toBe("jalapeno");
+    expect(itemIdFor("Jalapeño")).toBe("jalapeno");
+  });
+  it("still reads й as i and ё as e", () => {
+    expect(itemIdFor("Йогурт")).toBe("iogurt");
+    expect(itemIdFor("Ёлка")).toBe("elka");
+    expect(itemIdFor("Йогурт".normalize("NFD"))).toBe("iogurt");
+  });
   it("gives an empty id when nothing is usable", () => {
     expect(itemIdFor("!!!")).toBe("");
     expect(itemIdFor("🥚")).toBe("");

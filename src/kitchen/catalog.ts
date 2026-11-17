@@ -11,7 +11,8 @@ const RU: Record<string, string> = {
 
 /** The id an item with this name is saved under, or "" when the name has no letters or digits to build one from. */
 export function itemIdFor(name: string): string {
-  const latin = [...name.toLowerCase()].map((ch) => RU[ch] ?? ch).join("");
+  // Compose first so й and ё are one character for the table, then split what's left to drop accents (é, ñ).
+  const latin = [...name.toLowerCase().normalize("NFC")].map((ch) => RU[ch] ?? ch).join("").normalize("NFD").replace(/[̀-ͯ]/g, "");
   return latin.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
