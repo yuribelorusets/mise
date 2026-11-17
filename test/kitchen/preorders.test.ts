@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { preorderLines, planLines } from "../../src/kitchen/preorders.js";
+import { preorderLines, planLines, orderCapacity } from "../../src/kitchen/preorders.js";
 import { loadRestaurant, type Order } from "../../src/domain/restaurant.js";
-import type { Catalog, ProductionPlan } from "../../src/kitchen/types.js";
+import { syrnikiCatalog } from "./fixtures.js";
+import type { Catalog, PlanLine, ProductionPlan } from "../../src/kitchen/types.js";
 
 const menu = loadRestaurant("ruki").menu;
 const order = (items: [string, number][], pickupDate = "2026-12-05", over: Partial<Order> = {}): Order => ({
@@ -36,5 +37,28 @@ describe("preorders in the plan", () => {
   it("every menu item that names a kitchen item points at a real one", () => {
     const kitchen: Catalog = JSON.parse(readFileSync("data/kitchens/ruki.json", "utf8"));
     for (const m of menu.filter((x) => x.makes)) expect(kitchen.items.some((i) => i.id === m.makes!.item), m.id).toBe(true);
+  });
+});
+
+describe("what the kitchen can still sell", () => {
+  const stockFor10 = { cheese: 750, eggs: 3 };
+  const makes = { item: "syrniki", unit: "order" };
+  const line = (qty: number, source: PlanLine["source"]): PlanLine => ({ item: "syrniki", qty, unit: "order", source });
+
+  it("sells only what's left after the plan and earlier preorders", () => {
+    expect(orderCapacity(syrnikiCatalog, stockFor10, [line(4, "manual"), line(3, "preorder")], makes)).toBe(3);
+  });
+  it("is the whole stock when nothing is planned", () => {
+    expect(orderCapacity(syrnikiCatalog, stockFor10, [], makes)).toBe(10);
+  });
+  it("is 0 once the plan uses everything", () => {
+    expect(orderCapacity(syrnikiCatalog, stockFor10, [line(12, "manual")], makes)).toBe(0);
+  });
+  it("is Infinity when the recipe needs nothing on hand", () => {
+    const tea: Catalog = {
+      items: [{ id: "tea", name: "Tea", aliases: [], baseUnit: "each", units: {}, allergens: [] }], locations: [], plans: [],
+      recipes: [{ id: "tea", name: "Tea", makes: "tea", yield: { qty: 1, unit: "each" }, components: [] }],
+    };
+    expect(orderCapacity(tea, {}, [], { item: "tea", unit: "each" })).toBe(Infinity);
   });
 });

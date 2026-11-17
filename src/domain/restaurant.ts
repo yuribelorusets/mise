@@ -35,6 +35,7 @@ export interface RestaurantConfig {
     paymentLink?: string;
     maxOrdersPerPhone?: number; // default 2
     maxPerItem?: number; // most of one item in a single order, default 6
+    sellFromStock?: boolean; // also limit what's sold by what the kitchen can make from stock; default off
   };
   menu: MenuItem[];
 }
@@ -82,12 +83,19 @@ export class RestaurantStore {
 
   constructor(
     readonly config: RestaurantConfig = loadRestaurant(),
-    opts: { history?: { orders?: Order[] }; recorder?: Recorder } = {},
+    opts: {
+      history?: { orders?: Order[] };
+      recorder?: Recorder;
+      /** How many more orders the kitchen can make of this item, or undefined for no limit. Used only when popup.sellFromStock is on. */
+      capacity?: (m: MenuItem) => number | undefined;
+    } = {},
   ) {
     for (const o of opts.history?.orders ?? []) this.orders.push(o);
     this.recorder = opts.recorder;
+    this.capacity = opts.capacity;
   }
   private recorder?: Recorder;
+  private capacity?: (m: MenuItem) => number | undefined;
 
   /** After the ledger compacts, take its redacted copy of every order we hold, so the owner views match the file. */
   adoptRedacted(fromLedger: Order[]) {
@@ -104,10 +112,14 @@ export class RestaurantStore {
 
   /** Units left of a limited item, or undefined when unlimited. */
   remaining(itemId: string): number | undefined {
-    const item = this.config.menu.find((m) => m.id === itemId);
-    if (item?.quantity === undefined) return undefined;
+    const m = this.config.menu.find((x) => x.id === itemId);
+    if (!m) return undefined;
     const sold = this.orders.flatMap((o) => o.items).filter((l) => l.id === itemId).reduce((s, l) => s + l.quantity, 0);
-    return Math.max(0, item.quantity - sold);
+    const byQuantity = m.quantity === undefined ? undefined : Math.max(0, m.quantity - sold);
+    // The kitchen's answer already counts every order so far; the menu quantity doesn't, so it subtracts `sold` itself.
+    const fromStock = m.makes && this.config.popup.sellFromStock === true ? this.capacity?.(m) : undefined;
+    const limits = [byQuantity, fromStock].filter((n): n is number => n !== undefined && Number.isFinite(n));
+    return limits.length ? Math.max(0, Math.floor(Math.min(...limits))) : undefined;
   }
 
   findItem(idOrName: string): MenuItem | undefined {

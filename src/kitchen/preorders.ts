@@ -1,5 +1,7 @@
 import type { MenuItem, Order } from "../domain/restaurant.js";
-import type { PlanLine, ProductionPlan } from "./types.js";
+import { explode } from "./plan.js";
+import { maxBatch } from "./cost.js";
+import type { Catalog, PlanLine, ProductionPlan } from "./types.js";
 
 /** What guests have ordered for `date`, in kitchen units, computed from the orders each time and never stored. */
 export function preorderLines(orders: readonly Order[], menu: readonly MenuItem[], date: string): PlanLine[] {
@@ -23,4 +25,12 @@ export function preorderLines(orders: readonly Order[], menu: readonly MenuItem[
 export function planLines(plan: ProductionPlan | null | undefined, date: string, orders: readonly Order[], menu: readonly MenuItem[]): PlanLine[] {
   const own = (plan?.lines ?? []).filter((l) => l.source !== "preorder").map((l) => ({ ...l, source: "manual" as const }));
   return [...own, ...preorderLines(orders, menu, date)];
+}
+
+/** How many more `makes.unit` the kitchen can make once everything already planned for the day is set aside. */
+export function orderCapacity(c: Catalog, available: Record<string, number>, planned: PlanLine[], makes: { item: string; unit: string }): number {
+  const { uses } = explode(c, planned, available);
+  const left: Record<string, number> = Object.create(null);
+  for (const [id, n] of Object.entries(available)) left[id] = Math.max(0, n - (uses[id] ?? 0));
+  return maxBatch(c, left, makes.item, makes.unit);
 }

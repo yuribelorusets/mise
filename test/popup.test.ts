@@ -17,6 +17,32 @@ let guest = 0; // a new phone number each time, so the per-phone cap doesn't get
 const order = (s: RestaurantStore, item: string, quantity: number, pickupTime = "11:00", now = BEFORE_CUTOFF) =>
   s.placeOrder({ name: "Anya", phone: `510-555-${1000 + guest++}`, items: [{ item, quantity }], pickupTime }, now);
 
+describe("selling from stock", () => {
+  const on = { ...ruki, popup: { ...ruki.popup, sellFromStock: true } };
+  const NOW = BEFORE_CUTOFF;
+
+  it("sells out when the kitchen can't make more, even under the menu quantity", () => {
+    const store = new RestaurantStore(on, { capacity: (m) => (m.id === "syrniki" ? 2 : undefined) });
+    expect(store.remaining("syrniki")).toBe(2);
+    expect(() => store.placeOrder({ name: "Sam", phone: "510-555-0202", items: [{ item: "syrniki", quantity: 3 }], pickupTime: "11:00" }, NOW)).toThrow(/Only 2 Babushka's Syrniki left/);
+  });
+  it("keeps the menu quantity as a cap when stock would allow more", () => {
+    expect(new RestaurantStore(on, { capacity: () => 500 }).remaining("syrniki")).toBe(40);
+  });
+  it("ignores stock unless sellFromStock is on, as in ruki.json", () => {
+    expect(ruki.popup.sellFromStock).toBeFalsy();
+    expect(new RestaurantStore(ruki, { capacity: () => 0 }).remaining("syrniki")).toBe(40);
+  });
+  it("treats Infinity from stock as no stock limit", () => {
+    const noQty = { ...on, menu: on.menu.map((m) => (m.id === "syrniki" ? { ...m, quantity: undefined } : m)) };
+    expect(new RestaurantStore(noQty, { capacity: () => Infinity }).remaining("syrniki")).toBeUndefined();
+  });
+  it("leaves an item without makes to its quantity alone", () => {
+    const tea = on.menu.find((m) => !m.makes && m.quantity !== undefined)!;
+    expect(new RestaurantStore(on, { capacity: () => 0 }).remaining(tea.id)).toBe(tea.quantity);
+  });
+});
+
 describe("pop-up mode", () => {
   it("only offers pop-up tools, and refuses a tool it wasn't given", async () => {
     expect(toolSpecs(ruki).map((t) => t.name)).toEqual(["search_menu", "list_pickup_windows", "place_order", "handoff_to_human"]);

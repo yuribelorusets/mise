@@ -26,7 +26,8 @@
     "orderCutoff": "2026-12-04T20:00:00-08:00",
     "paymentLink": "",
     "maxOrdersPerPhone": 2,
-    "maxPerItem": 6
+    "maxPerItem": 6,
+    "sellFromStock": false
   },
   "menu": [
     {

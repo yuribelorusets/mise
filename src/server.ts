@@ -2,7 +2,7 @@ import express from "express";
 import type { LLM } from "./llm/types.js";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
-import { loadRestaurant, localDate, RestaurantStore, type RestaurantConfig } from "./domain/restaurant.js";
+import { loadRestaurant, localDate, RestaurantStore, type MenuItem, type Order, type RestaurantConfig } from "./domain/restaurant.js";
 import { WebhookClient } from "./integrations/webhook.js";
 import { runTurn, type Session } from "./agent/agent.js";
 import { makeLLM, now } from "./config.js";
@@ -19,6 +19,8 @@ import { ownerAuth } from "./ops/owner-auth.js";
 import { FileStore } from "./kitchen/file-store.js";
 import { MemoryStore } from "./kitchen/memory-store.js";
 import { toBase } from "./kitchen/units.js";
+import { orderCapacity, planLines } from "./kitchen/preorders.js";
+import { onHand, totals } from "./kitchen/stock.js";
 import type { Catalog, KitchenStore } from "./kitchen/types.js";
 
 export interface AppOptions {
@@ -60,6 +62,23 @@ function checkMakes(config: RestaurantConfig, catalog: Catalog) {
   }
 }
 
+/** How many more orders the kitchen can make of a menu item, remembered until stock, orders or the catalog change. */
+function kitchenCapacity(config: RestaurantConfig, kitchen: KitchenStore, orders: () => readonly Order[]) {
+  const cache = new Map<string, { key: string; value: number }>();
+  return (m: MenuItem): number | undefined => {
+    if (!m.makes) return undefined;
+    const c = kitchen.catalog();
+    const key = `${kitchen.events().length}:${orders().length}:${JSON.stringify(c).length}`;
+    const hit = cache.get(m.id);
+    if (hit?.key === key) return hit.value;
+    const plan = c.plans.find((p) => p.date === config.popup.eventDate);
+    const planned = planLines(plan, config.popup.eventDate, orders(), config.menu);
+    const value = orderCapacity(c, totals(onHand(kitchen.events())), planned, m.makes);
+    cache.set(m.id, { key, value });
+    return value;
+  };
+}
+
 const WEB_DIST = fileURLToPath(new URL("../web/dist", import.meta.url));
 const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 /** The React app once it's built; the old static pages until then. */
@@ -73,7 +92,10 @@ export function createApp(opts: AppOptions = {}) {
   const ledger = opts.ledger ?? new Ledger(process.env.DATA_DIR, config.id);
   const webhook = opts.webhook ?? new WebhookClient();
   const days = retainDays();
-  const store = opts.store ?? new RestaurantStore(config, { history: ledger, recorder: ledger });
+  const kitchen = opts.kitchen ?? kitchenStore(config.id);
+  checkMakes(config, kitchen.catalog());
+  const capacity = kitchenCapacity(config, kitchen, () => store.orders);
+  const store: RestaurantStore = opts.store ?? new RestaurantStore(config, { history: ledger, recorder: ledger, capacity });
   if (ledger.persistent) {
     const compactAll = () => {
       ledger.compact(new Date(), days);
@@ -179,9 +201,7 @@ export function createApp(opts: AppOptions = {}) {
     }
   });
 
-  const kitchen = opts.kitchen ?? kitchenStore(config.id);
   const proposals = opts.proposals ?? new ProposalBook(kitchen, { file: process.env.DATA_DIR ? join(process.env.DATA_DIR, `${config.id}.proposals.json`) : undefined });
-  checkMakes(config, kitchen.catalog());
   const assistant = createKitchenAssistant({ store: kitchen, proposals, llm, now });
   app.use("/api/kitchen", owner.requireOwner, kitchenRouter({ store: kitchen, proposals, assistant, orders: () => store.orders, menu: config.menu, today: () => localDate(now(), config.timezone), ledger, limits }));
 

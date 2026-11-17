@@ -8,7 +8,8 @@ import { loadRestaurant, RestaurantStore } from "../../src/domain/restaurant.js"
 import { MemoryStore } from "../../src/kitchen/memory-store.js";
 import { ProposalBook } from "../../src/kitchen/proposals.js";
 import { explode } from "../../src/kitchen/plan.js";
-import type { Catalog, ProposalLine } from "../../src/kitchen/types.js";
+import type { LLM, LLMResponse } from "../../src/llm/types.js";
+import type { Catalog, ProposalLine, StockEvent } from "../../src/kitchen/types.js";
 
 const ruki: Catalog = JSON.parse(readFileSync("data/kitchens/ruki.json", "utf8"));
 const seed: Catalog = { ...ruki, plans: [{ id: "plan-dec-5", date: "2026-12-05", lines: [{ item: "syrniki", qty: 40, unit: "order", source: "manual" }] }] };
@@ -207,5 +208,39 @@ describe("kitchen API", () => {
   it("answers 404 for an unknown item on cost and max-batch, not 500", async () => {
     expect((await kitchen("/cost?item=nope&qty=1&unit=each")).status).toBe(404);
     expect((await kitchen("/max-batch?item=nope&unit=each")).status).toBe(404);
+  });
+});
+
+describe("selling from stock, through the app", () => {
+  it("sells the third order and refuses the fourth when stock covers three", async () => {
+    process.env.MISE_TODAY = "2026-12-04";
+    const base = loadRestaurant("ruki");
+    const config = { ...base, popup: { ...base.popup, sellFromStock: true, maxOrdersPerPhone: 10 } };
+    // Per order: 75 g cheese, 0.3 eggs, 15 g flour, 6 g sugar, 40 g sour cream, 30 g jam. Cheese runs out after three.
+    const have: [string, number][] = [["farmers-cheese", 230], ["eggs", 1], ["flour", 50], ["sugar", 20], ["sour-cream", 130], ["jam", 100]];
+    const stock: StockEvent[] = have.map(([item, qty]) => ({ id: `s-${item}`, at: "2026-12-01T10:00:00Z", kind: "receive", item, location: "walk-in", qty, source: "manual" }));
+    const kitchenOnly = new MemoryStore({ ...ruki, plans: [] });
+    kitchenOnly.append(stock);
+    // Each message is a phone number; the model orders one syrniki for that guest, then repeats the tool's answer.
+    const llm: LLM = {
+      name: "scripted",
+      async complete(req): Promise<LLMResponse> {
+        const last = req.messages.at(-1)!;
+        if (typeof last.content === "string")
+          return { stop_reason: "tool_use", content: [{ type: "tool_use", id: `t${Math.random()}`, name: "place_order", input: { name: "Guest", phone: last.content, items: [{ item: "syrniki", quantity: 1 }], pickupTime: "11:00" } }] };
+        const result = last.content.map((b) => (b.type === "tool_result" ? b.content : "")).join("");
+        return { stop_reason: "end_turn", content: [{ type: "text", text: result }] };
+      },
+    };
+    const app = createApp({ config, llm, webhook: new WebhookClient({ url: "", fallbackFile: null }), kitchen: kitchenOnly, limits: { perMinute: 1000 } });
+    const s = await new Promise<Server>((r) => { const x = app.listen(0, () => r(x)); });
+    const a = s.address();
+    const url = `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}`;
+    const chat = async (phone: string) => (await (await fetch(`${url}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: `g-${phone}`, message: phone }) })).json()).reply as string;
+    const replies: string[] = [];
+    for (const phone of ["510-555-0301", "510-555-0302", "510-555-0303", "510-555-0304"]) replies.push(await chat(phone));
+    s.close();
+    expect(replies.slice(0, 3).join("\n")).not.toMatch(/sold out|only|left/i);
+    expect(replies[3]).toMatch(/sold out|only 0|0 left/i);
   });
 });
