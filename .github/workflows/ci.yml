@@ -10,6 +10,13 @@ jobs:
       - run: npm ci
       - run: npm --prefix web ci
       - run: npm run web:build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
       - run: npm run web:test
       - run: npm run typecheck
       - run: npm test
