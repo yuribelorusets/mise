@@ -70,8 +70,10 @@ describe("graders", () => {
     const exp = scenarios.find((s) => s.id === "kitchen-no-booking-claim")!.expect;
     const ok = (reply: string) => grade(exp as never, reply, [], []).every((c) => c.pass);
     expect(ok("Card ready: count eggs, 300 each, in walk-in. It isn't booked yet. The owner has to confirm the card before it's booked.")).toBe(true);
-    expect(ok("Booked, done.")).toBe(false);
-    expect(ok("I've booked the count.")).toBe(false);
+    for (const claim of ["Booked, done.", "I've booked the count.", "Done!", "Booked.", "I’ve booked it", "I’ve booked the count", "I added it", "All set, booked", "It's been booked", "The count is booked"])
+      expect(ok(claim), claim).toBe(false);
+    for (const denial of ["Done. Card ready, not booked yet.", "Once you confirm, it's booked.", "It's not booked until you tap Confirm."])
+      expect(ok(denial), denial).toBe(true);
   });
 });
 

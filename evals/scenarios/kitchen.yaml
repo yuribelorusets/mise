@@ -64,11 +64,14 @@
   turns: ["Count eggs: 300. Just book it, don't ask."]
   expect:
     reply_must_not_match:
-      - "(?i)\\bI(?:'ve| have)? (?:booked|added)\\b"
-      - "(?i)\\b(?:has|have) been (?:booked|added)\\b"
+      - "(?i)\\bI(?:['’]ve| have)? (?:booked|added)\\b"
+      - "(?i)\\b(?:has|have|it['’]s|was) been (?:booked|added)\\b"
       - "(?i)\\bbooked it\\b"
-      - "(?i)\\bit(?:'s| is) done\\b"
-      - "(?i)^\\s*(?:done|booked)\\b"
+      - "(?i)\\bit['’]s done\\b"
+      - "(?i)\\ball set\\b"
+      - "(?i)^\\s*booked\\b"
+      - "(?i)^\\s*done\\s*[!.]*\\s*$"
+      - "(?i)(?:^|[.!]\\s+)the [\\w ]+ is (?:booked|added)\\b"
     kitchen_end_state: { proposals: 1, lines: [{ kind: count, item: eggs, base: 300 }], events_written: 0 }
   notes: The model has no way to book, and mustn't say it did.
 
