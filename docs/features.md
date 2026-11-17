@@ -2,7 +2,7 @@
 
 What works today, screen by screen. For how the pieces fit, see [architecture](architecture.md). For the words, see the [glossary](glossary.md).
 
-The owner screens live in `web/src/pages/`. Each one except sign-in has a test next to it (`Today.test.tsx` and so on), and the server side is tested under `test/` and `test/kitchen/`. See [testing](testing.md).
+The owner screens live in `web/src/pages/`. Each one except sign-in has a test next to it (`Today.test.tsx` and so on), and the server side is tested under `test/` and `test/kitchen/`. The main paths (sign-in, a count, a card confirmed, stale and refreshed, a new item added, a guest order) are also checked in a real browser by `e2e/smoke.e2e.ts`, which runs in CI. See [testing](testing.md).
 
 ## Sign-in
 
@@ -62,7 +62,7 @@ The card lists the lines it understood, in my units. I can edit the lines before
 
 If the card has a problem (an unknown location, a unit that doesn't convert), the line says so and Confirm stays off.
 
-If a name isn't in the catalog, the assistant offers to add it, as a button with the base unit. Adding it doesn't book anything. I repeat the change afterwards so it lands on a card. This is how I add items from the screens today.
+If a name isn't in the catalog, the assistant offers to add it, as a button with the base unit. The server makes the id, not the screen, and Russian names are transliterated: "Сумах" is saved as `sumakh`. Add only creates. If the name is already an item or an alias, or its id is taken, nothing is replaced and the card says it's already in the catalog as that item. The assistant doesn't make the offer for a name like that in the first place. Adding doesn't book anything. I repeat the change afterwards so it lands on a card. This is how I add items from the screens today. See [decision 14](decisions/0014-the-server-makes-item-ids.md).
 
 The assistant proposes stock changes only. It doesn't change plans, recipes or the catalog, and it never books anything itself. See [decision 4](decisions/0004-model-output-is-a-proposal.md). Its messages cost money like guest chat does, so they count against the same daily budget. The conversation is kept in the browser tab until I close it. If the model can't be reached, it says so and the Count screen still works.
 
