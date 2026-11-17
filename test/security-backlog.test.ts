@@ -1,5 +1,5 @@
 /**
- * Known medium and low findings from the wave-1 security pass. Each test says what should happen and is
+ * Known medium and low findings from the security passes of waves 1 to 3. Each test says what should happen and is
  * marked `it.fails`, so it passes while the bug exists. When you fix one, the test starts failing:
  * change `it.fails` to `it` and move the entry in docs/security-backlog.md out of "Open".
  */
@@ -20,6 +20,13 @@ import { FileStore } from "../src/kitchen/file-store.js";
 import { onHand, total } from "../src/kitchen/stock.js";
 import { explode } from "../src/kitchen/plan.js";
 import type { Catalog, StockEvent } from "../src/kitchen/types.js";
+import { itemIdFor } from "../src/kitchen/catalog.js";
+import { grade } from "../src/evals/graders.js";
+import { parse } from "yaml";
+import { spawn } from "node:child_process";
+import { networkInterfaces } from "node:os";
+import { readdirSync, rmSync } from "node:fs";
+import { connect, createServer, type AddressInfo } from "node:net";
 
 const ruki = loadRestaurant("ruki");
 const NOW = new Date("2026-12-04T18:00:00-08:00");
@@ -195,5 +202,89 @@ describe("wave-2 pass", () => {
   it("doesn't offer a new item whose id would be empty", () => {
     // Russian names are transliterated now, so only a name with no letters or digits has no id.
     expect(runKitchenTool("offer_new_item", { name: "🥚", baseUnit: "g" }, ctx()).isError).toBe(true);
+  });
+});
+
+describe("wave-3 pass", () => {
+  const owner = "syrniki-2026";
+
+  // Backlog: "The assistant can offer an item the create route refuses."
+  it.fails("doesn't offer a new item that the create route will refuse", async () => {
+    const seed: Catalog = JSON.parse(readFileSync("data/kitchens/ruki.json", "utf8"));
+    const kitchen = new MemoryStore({ ...seed, plans: [] });
+    const app = await start(createApp({ llm: new MockLLM(), webhook: quiet(), limits: { perMinute: 1000 }, ownerPasscode: owner, kitchen }));
+    try {
+      const signIn = await fetch(`${app.url}/api/owner/sign-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ passcode: owner }) });
+      const cookie = signIn.headers.get("set-cookie")!.split(";")[0];
+      // "tvorog" is an alias of farmers-cheese. "Tvorog!" makes that id, which the tool checks only against item ids.
+      const offered = !runKitchenTool("offer_new_item", { name: "Tvorog!", baseUnit: "g" }, ctx()).isError;
+      const res = await fetch(`${app.url}/api/kitchen/items`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ name: "Tvorog!", baseUnit: "g" }) });
+      // Whatever the tool offers, the route must accept; or the tool must not offer it.
+      expect(!offered || res.status === 201).toBe(true);
+    } finally {
+      app.close();
+    }
+  });
+
+  // Backlog: "itemIdFor drops letters it can't map, so ids come out wrong."
+  it.fails("makes an id that keeps the letters it can't transliterate", () => {
+    expect(itemIdFor("Straße")).toBe("strasse"); // today: "stra-e"
+  });
+
+  it.fails("keeps an id to a sensible length", () => {
+    expect(itemIdFor("щ".repeat(60)).length).toBeLessThanOrEqual(60); // today: 240 characters
+  });
+
+  // Backlog: "reply_must_not_match is looser than the check it replaced."
+  it.fails("catches 'is booked' in the no-booking-claim scenario", () => {
+    const file = parse(readFileSync("evals/scenarios/kitchen.yaml", "utf8")) as { id: string; expect: Parameters<typeof grade>[0] }[];
+    const s = file.find((x) => x.id === "kitchen-no-booking-claim")!;
+    const checks = grade({ reply_must_not_match: s.expect.reply_must_not_match }, "Your count of 300 eggs is booked.", [], []);
+    expect(checks.some((c) => !c.pass)).toBe(true);
+  });
+
+  it.fails("reports an unsupported regex flag as a failed check instead of throwing", () => {
+    // toRegex understands a leading (?i) and nothing else, so (?m) or (?s) make `new RegExp` throw and abort the whole eval run.
+    expect(() => grade({ reply_must_not_match: ["(?m)^done"] }, "hello", [], [])).not.toThrow();
+  });
+
+  // Backlog: "The e2e server listens on every interface with a passcode that's in the repo."
+  // Without a non-loopback interface there is nothing to check, so the test is skipped rather than passing on its own.
+  const external = Object.values(networkInterfaces()).flat().find((i) => i && i.family === "IPv4" && !i.internal)?.address;
+  (external ? it.fails : it.skip)("starts the server on loopback only", async () => {
+    const probe = createServer();
+    await new Promise<void>((r) => probe.listen(0, "127.0.0.1", r));
+    const port = (probe.address() as AddressInfo).port;
+    await new Promise((r) => probe.close(r));
+    const dataDir = mkdtempSync(join(tmpdir(), "mise-bind-"));
+    // Run tsx itself, not through npx, so kill() reaches the server.
+    const child = spawn("node_modules/.bin/tsx", ["src/server.ts"], { env: { ...process.env, PORT: String(port), MISE_LLM: "mock", DATA_DIR: dataDir }, stdio: "ignore" });
+    const reach = (host: string) => new Promise<boolean>((resolve) => { const s = connect(port, host, () => { s.destroy(); resolve(true); }); s.on("error", () => resolve(false)); });
+    try {
+      let up = false;
+      for (let i = 0; i < 100 && !up; i++) { up = await reach("127.0.0.1"); if (!up) await new Promise((r) => setTimeout(r, 200)); }
+      // Fail on a start-up problem for its own reason, not as the bug.
+      if (!up) throw new Error("the server never came up");
+      expect(await reach(external!)).toBe(false);
+    } finally {
+      child.kill();
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  // Backlog: "playwright.config.ts makes a data directory every time it's loaded."
+  it.fails("doesn't create a data directory just by loading the Playwright config", async () => {
+    // A private TMPDIR, so a real e2e run beside this test is neither counted nor deleted.
+    const real = process.env.TMPDIR;
+    const mine = mkdtempSync(join(tmpdir(), "mise-probe-"));
+    process.env.TMPDIR = mine;
+    try {
+      const config = "../playwright.config.ts?probe"; // a query so the file is read again
+      await import(/* @vite-ignore */ config);
+      expect(readdirSync(mine).filter((n) => n.startsWith("mise-e2e-"))).toEqual([]);
+    } finally {
+      if (real === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = real;
+      rmSync(mine, { recursive: true, force: true });
+    }
   });
 });
