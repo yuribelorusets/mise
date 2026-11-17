@@ -40,7 +40,9 @@ describe("kitchen read tools", () => {
 
   it("doesn't call a big stock unlimited", () => {
     const r = runKitchenTool("max_batch", { item: "flour", unit: "g" }, ctx([ev("flour", 12000, "dry")]));
-    expect(r.content).toMatchObject({ item: "flour", max: 10000, capped: true });
+    expect(r.content).toMatchObject({ item: "flour", max: 12000 });
+    const huge = runKitchenTool("max_batch", { item: "flour", unit: "g" }, ctx([ev("flour", 2_000_000, "dry")]));
+    expect(huge.content).toMatchObject({ item: "flour", max: null });
   });
 
   it("costs a batch from the latest prices", () => {

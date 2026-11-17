@@ -172,11 +172,9 @@ function readTool(name: string, input: Record<string, unknown>, ctx: KitchenTool
       const item = resolve(c, input.item);
       const unit = input.unit === undefined ? (Object.keys(item.units)[0] ?? item.baseUnit) : str(input.unit, "The unit");
       toBase(item, 1, unit);
-      const limit = 10_000;
-      const max = maxBatch(c, totals(onHand(ctx.store.events())), item.id, unit, limit);
-      // null means stock doesn't limit it; hitting the search cap is a number, flagged.
-      if (max === Infinity) return ok({ item: item.id, name: item.name, unit, max: null });
-      return ok({ item: item.id, name: item.name, unit, max, ...(max >= limit ? { capped: true } : {}) });
+      // Search far enough that a real shelf (12 kg of flour asked in g) never reads as unlimited.
+      const max = maxBatch(c, totals(onHand(ctx.store.events())), item.id, unit, 1_000_000);
+      return ok({ item: item.id, name: item.name, unit, max: max === Infinity ? null : max });
     }
     case "cost": {
       const item = resolve(c, input.item);
