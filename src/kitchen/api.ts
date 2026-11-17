@@ -6,7 +6,8 @@ import { checkLine, ProposalError, MAX_LINES, type ProposalBook } from "./propos
 import { onHand, totals, type OnHand } from "./stock.js";
 import { toBase, UnitError } from "./units.js";
 import type { Catalog, KitchenAssistant, KitchenStore, ProductionPlan, ProposalLine, StockEvent } from "./types.js";
-import type { Order } from "../domain/restaurant.js";
+import type { MenuItem, Order } from "../domain/restaurant.js";
+import { planLines } from "./preorders.js";
 import type { Ledger } from "../ops/ledger.js";
 import type { Limits } from "../ops/guardrails.js";
 import { RateLimiter } from "../ops/guardrails.js";
@@ -39,6 +40,7 @@ export interface KitchenApiDeps {
   proposals: ProposalBook;
   assistant: KitchenAssistant;
   orders: () => readonly Order[];
+  menu: readonly MenuItem[];
   today: () => string; // YYYY-MM-DD in the kitchen's time zone
   ledger: Ledger;
   limits: Limits;
@@ -79,7 +81,20 @@ export function kitchenRouter(deps: KitchenApiDeps) {
     prep: r.prep.map((t) => ({ ...t, recipeName: c.recipes.find((x) => x.id === t.recipe)?.name ?? t.recipe })),
     shopping: r.shopping.map((s) => ({ ...s, name: nameOf(c, s.item) })),
   });
-  const plansByDate = (c: Catalog) => [...c.plans].sort((a, b) => a.date.localeCompare(b.date));
+  /** The stored plans with each date's preorders added, plus a plan made on the fly for a date that only has preorders. */
+  const plansByDate = (c: Catalog): ProductionPlan[] => {
+    const orders = deps.orders();
+    const dates = new Set<string>([...c.plans.map((p) => p.date), ...orders.flatMap((o) => (o.pickupDate ? [o.pickupDate] : []))]);
+    const made: ProductionPlan[] = [];
+    for (const date of dates) {
+      const own = c.plans.filter((p) => p.date === date);
+      if (own.length === 0) {
+        const lines = planLines(null, date, orders, deps.menu);
+        if (lines.length) made.push({ id: `preorders-${date}`, date, lines });
+      } else own.forEach((p, i) => made.push({ ...p, lines: planLines(p, date, i === 0 ? orders : [], deps.menu) }));
+    }
+    return made.sort((a, b) => a.date.localeCompare(b.date));
+  };
   const kindOf = (v: unknown): Kind => {
     if (!KINDS.includes(v as Kind)) throw new BadRequest(`Catalog kind must be one of ${KINDS.join(", ")}.`);
     return v as Kind;
@@ -103,6 +118,7 @@ export function kitchenRouter(deps: KitchenApiDeps) {
     const kind = kindOf(req.params.kind);
     const rec = req.body;
     if (typeof rec !== "object" || rec === null || Array.isArray(rec) || typeof rec.id !== "string" || !rec.id) throw new BadRequest("Send one record with an id.");
+    if (kind === "plans" && Array.isArray(rec.lines)) rec.lines = rec.lines.filter((l: { source?: unknown }) => l?.source !== "preorder");
     changeCatalog((c) => {
       const list = c[kind] as { id: string }[];
       const at = list.findIndex((x) => x.id === rec.id);
@@ -148,7 +164,7 @@ export function kitchenRouter(deps: KitchenApiDeps) {
     const today = deps.today();
     const plan = plansByDate(c).find((p) => p.date >= today) ?? null;
     const date = plan?.date ?? today;
-    const r = resultWithNames(c, explode(c, plan?.lines ?? [], available()));
+    const r = resultWithNames(c, explode(c, plan?.lines ?? planLines(null, date, deps.orders(), deps.menu), available()));
     const preorders: GuestPreorder[] = deps.orders()
       .filter((o) => o.pickupDate === date)
       .sort((a, b) => a.pickupTime.localeCompare(b.pickupTime))
@@ -163,7 +179,7 @@ export function kitchenRouter(deps: KitchenApiDeps) {
   router.get("/plans", (_req, res) => void res.json(plansByDate(store.catalog())));
   router.get("/plans/:id/result", (req, res) => {
     const c = store.catalog();
-    const plan = c.plans.find((p) => p.id === req.params.id);
+    const plan = plansByDate(c).find((p) => p.id === req.params.id);
     if (!plan) throw new NotFound("There's no plan with that id.");
     res.json(resultWithNames(c, explode(c, plan.lines, available())));
   });

@@ -39,6 +39,7 @@
       "allergens": ["dairy", "egg", "gluten"],
       "dietary": ["vegetarian"],
       "piecesPerOrder": 3,
+      "makes": { "item": "syrniki", "unit": "order" },
       "description": "Farmer's cheese pancakes, sour cream, seasonal jam."
     },
     {

@@ -18,6 +18,7 @@ import { createKitchenAssistant } from "./kitchen/assistant/index.js";
 import { ownerAuth } from "./ops/owner-auth.js";
 import { FileStore } from "./kitchen/file-store.js";
 import { MemoryStore } from "./kitchen/memory-store.js";
+import { toBase } from "./kitchen/units.js";
 import type { Catalog, KitchenStore } from "./kitchen/types.js";
 
 export interface AppOptions {
@@ -43,6 +44,20 @@ function kitchenStore(id: string): KitchenStore {
   if (process.env.DATA_DIR) return new FileStore(process.env.DATA_DIR, id, seed);
   console.warn("DATA_DIR isn't set, so kitchen stock isn't saved between restarts.");
   return new MemoryStore(seed);
+}
+
+/** A menu item that names a kitchen item must name a real one, in a unit that converts. A config mistake stops the server here. */
+function checkMakes(config: RestaurantConfig, catalog: Catalog) {
+  for (const m of config.menu) {
+    if (!m.makes) continue;
+    const item = catalog.items.find((i) => i.id === m.makes!.item);
+    if (!item) throw new Error(`Menu item "${m.id}" makes "${m.makes.item}", which isn't in the kitchen catalog.`);
+    try {
+      toBase(item, 1, m.makes.unit);
+    } catch {
+      throw new Error(`Menu item "${m.id}" makes "${m.makes.item}" in "${m.makes.unit}", which isn't a unit that item has.`);
+    }
+  }
 }
 
 const WEB_DIST = fileURLToPath(new URL("../web/dist", import.meta.url));
@@ -166,8 +181,9 @@ export function createApp(opts: AppOptions = {}) {
 
   const kitchen = opts.kitchen ?? kitchenStore(config.id);
   const proposals = opts.proposals ?? new ProposalBook(kitchen, { file: process.env.DATA_DIR ? join(process.env.DATA_DIR, `${config.id}.proposals.json`) : undefined });
+  checkMakes(config, kitchen.catalog());
   const assistant = createKitchenAssistant({ store: kitchen, proposals, llm, now });
-  app.use("/api/kitchen", owner.requireOwner, kitchenRouter({ store: kitchen, proposals, assistant, orders: () => store.orders, today: () => localDate(now(), config.timezone), ledger, limits }));
+  app.use("/api/kitchen", owner.requireOwner, kitchenRouter({ store: kitchen, proposals, assistant, orders: () => store.orders, menu: config.menu, today: () => localDate(now(), config.timezone), ledger, limits }));
 
   app.use("/admin", adminRouter({ config, store, ledger, limits, publicDir: PUBLIC_DIR }));
 

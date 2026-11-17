@@ -7,6 +7,7 @@ import { WebhookClient } from "../../src/integrations/webhook.js";
 import { loadRestaurant, RestaurantStore } from "../../src/domain/restaurant.js";
 import { MemoryStore } from "../../src/kitchen/memory-store.js";
 import { ProposalBook } from "../../src/kitchen/proposals.js";
+import { explode } from "../../src/kitchen/plan.js";
 import type { Catalog, ProposalLine } from "../../src/kitchen/types.js";
 
 const ruki: Catalog = JSON.parse(readFileSync("data/kitchens/ruki.json", "utf8"));
@@ -101,6 +102,43 @@ describe("kitchen API", () => {
     expect(today.date).toBe("2026-12-05");
     expect(today.preorders[0]).toEqual({ firstName: "Anna", pickupTime: "11:00", items: [{ name: "Babushka's Syrniki", quantity: 2 }] });
     expect(text).not.toMatch(/Petrova|555|1234/);
+  });
+
+  it("rolls preorders into the plans, Today and the plan result", async () => {
+    const plans = await (await kitchen("/plans")).json();
+    expect(plans[0].lines).toEqual([
+      { item: "syrniki", qty: 40, unit: "order", source: "manual" },
+      { item: "syrniki", qty: 2, unit: "order", source: "preorder" },
+    ]);
+    const expected = explode(seed, [{ item: "syrniki", qty: 42, unit: "order", source: "manual" }], {}).prep;
+    const today = await (await kitchen("/today")).json();
+    expect(today.prep.map((t: { recipe: string; qty: number }) => [t.recipe, t.qty])).toEqual(expected.map((t) => [t.recipe, t.qty]));
+    const result = await (await kitchen("/plans/plan-dec-5/result")).json();
+    expect(result.prep.map((t: { recipe: string; qty: number }) => [t.recipe, t.qty])).toEqual(expected.map((t) => [t.recipe, t.qty]));
+  });
+
+  it("makes a plan on the fly for a date with preorders and no plan", async () => {
+    const other = new RestaurantStore({ ...loadRestaurant("ruki"), popup: { ...loadRestaurant("ruki").popup, eventDate: "2026-12-12" } });
+    other.placeOrder({ name: "Sam", phone: "510-555-0202", items: [{ item: "syrniki", quantity: 1 }], pickupTime: "11:00" }, new Date("2026-12-04T18:00:00-08:00"));
+    restaurant.orders.push(...other.orders);
+    const plans = await (await kitchen("/plans")).json();
+    expect(plans.find((p: { date: string }) => p.date === "2026-12-12")).toEqual({ id: "preorders-2026-12-12", date: "2026-12-12", lines: [{ item: "syrniki", qty: 1, unit: "order", source: "preorder" }] });
+    expect((await kitchen("/plans/preorders-2026-12-12/result")).status).toBe(200);
+    restaurant.orders.splice(restaurant.orders.length - 1, 1);
+  });
+
+  it("stores only the manual lines when a plan is saved", async () => {
+    const lines = [{ item: "syrniki", qty: 30, unit: "order", source: "manual" }, { item: "syrniki", qty: 2, unit: "order", source: "preorder" }];
+    expect((await post("/catalog/plans", { id: "plan-dec-19", date: "2026-12-19", lines })).status).toBe(200);
+    expect(kitchenStore.catalog().plans.find((p) => p.id === "plan-dec-19")!.lines).toEqual([lines[0]]);
+  });
+
+  it("refuses to start when a menu item makes something the kitchen doesn't have", () => {
+    const base = loadRestaurant("ruki");
+    const wrong = (makes: { item: string; unit: string }) => ({ ...base, menu: base.menu.map((m) => (m.id === "syrniki" ? { ...m, makes } : m)) });
+    const start = (config: ReturnType<typeof wrong>) => createApp({ config, llm: new MockLLM(), webhook: new WebhookClient({ url: "", fallbackFile: null }), kitchen: new MemoryStore(seed) });
+    expect(() => start(wrong({ item: "nope", unit: "order" }))).toThrow(/syrniki.*nope/);
+    expect(() => start(wrong({ item: "syrniki", unit: "bunch" }))).toThrow(/syrniki.*bunch/);
   });
 
   it("names prep tasks by recipe, not by id", async () => {

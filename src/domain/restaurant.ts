@@ -10,6 +10,7 @@ export interface MenuItem {
   price: number;
   quantity?: number; // limited batch (pop-ups); omitted = unlimited
   piecesPerOrder?: number; // syrniki come three to an order; omitted = 1
+  makes?: { item: string; unit: string }; // the kitchen item and unit one of these turns into
   allergens: string[];
   dietary: string[];
   description: string;
