@@ -9,7 +9,6 @@ Medium and low findings from the security reviewer that didn't block a merge. Hi
 - **[low] `compact` assumes one process.** It rewrites the ledger from memory and renames over the file, so lines a second process appended in the meantime are lost. It also drops lines of unknown kinds without logging how many, and a crash mid-write leaves a `.tmp` file. Fine for one server per kitchen. Log the dropped count and say "one process per data dir" in the deploy notes. Found reviewing `feat/guardrails`.
 - **[low] Without `DATA_DIR`, `./events.jsonl` is never trimmed.** Compaction only runs when the ledger is persistent, so a dev or demo run that falls back to the webhook file keeps guest names and phones there indefinitely. Found reviewing `feat/guardrails`.
 - **[low] The kitchen file store doesn't fsync, and `events()` returns the live array.** A power cut right after an append or a catalog save can lose it, and a failed catalog write leaves `<kitchen>.catalog.json.tmp` behind. `events()` is typed `readonly` but callers can still change the array. Found reviewing `feat/kitchen-core` (wave 1).
-- **[low] `maxBatch` hides its cap.** With a recipe that has no components, or plenty of stock, it returns the 10,000 search limit, which reads as a real answer. A NaN or fractional `limit` isn't clamped either. Return `Infinity` or a flag for "not limited by stock" before wave 2 shows it. Found reviewing `feat/kitchen-core`.
 - **[low] Frontend build hardening.** Set `build.sourcemap: false` explicitly in `web/vite.config.ts` so a later change can't ship source maps through `express.static`, and add `npm --prefix web audit --omit=dev` to CI. Found reviewing `feat/web-shell`.
 
 The entries below come from the wave-1 pass over everything merged. Each has a test in `test/security-backlog.test.ts` marked `it.fails`: it passes while the bug exists and starts failing once it's fixed, at which point change it to `it` and move the entry out of this list.
@@ -45,6 +44,7 @@ The entries below come from the wave-2 branch reviews (`feat/kitchen-api` and `f
 
 ## Fixed
 
+- **[low] `maxBatch` hides its cap.** Fixed in wave 2 (G1): it returns `Infinity` when stock allows the search limit and refuses a limit that isn't a positive whole number. The route, the assistant tool and order capacity search to 1,000,000, so a real amount in grams never reads as unlimited.
 - **[low] The Today fixtures don't match what the kitchen core returns.** Fixed in wave 2 (F): Today reads `/api/kitchen/today`, which names prep by recipe and sends guests' first names only, and `test/web-fixtures.test.ts` checks the fixtures against the core.
 - **[medium] `/api` accepts form-encoded POSTs and doesn't check Origin.** Fixed in wave 2 (D1): `/api` writes must be JSON (415 otherwise), cross-site writes get 403, and the owner cookie is `SameSite=Strict`.
 - **[low] The privacy notice undersells what's kept.** Fixed in wave 2 (D5): `/api/config` sends a `privacyNotice` that names notes and chat text and who reads them. F renders it on `/order`.
