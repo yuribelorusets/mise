@@ -1,5 +1,5 @@
 import express, { type ErrorRequestHandler } from "express";
-import { itemIdFor, validateCatalog } from "./catalog.js";
+import { findItem, itemIdFor, validateCatalog } from "./catalog.js";
 import { batchCost, maxBatch } from "./cost.js";
 import { explode, type PlanResult, type PrepTask, type ShoppingLine } from "./plan.js";
 import { checkLine, ProposalError, MAX_LINES, type ProposalBook } from "./proposals.js";
@@ -124,7 +124,7 @@ export function kitchenRouter(deps: KitchenApiDeps) {
     const id = itemIdFor(name);
     if (!id) return refuse("I can't make an id from that name. Name it in letters or digits.");
     const c = store.catalog();
-    const taken = c.items.find((i) => i.id === id);
+    const taken = c.items.find((i) => i.id === id) ?? findItem(c, name) ?? findItem(c, id);
     if (taken) return void res.status(409).json({ error: `That's already in the catalog as "${taken.id}" (${taken.name}).`, existing: taken.id });
     const item = { id, name, aliases: [], baseUnit, units: {}, allergens: [] };
     const next = structuredClone(c);

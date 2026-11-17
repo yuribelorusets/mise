@@ -116,6 +116,16 @@ describe("kitchen API", () => {
     await kitchen("/catalog/items/sumakh", { method: "DELETE" });
   });
 
+  it("refuses a new item whose name is already an item or alias", async () => {
+    const before = structuredClone(kitchenStore.catalog());
+    for (const name of ["Творог", "Farmer's cheese", "Tvorog!"]) {
+      const res = await post("/items", { name, baseUnit: "g" });
+      expect(res.status, name).toBe(409);
+      expect(await res.json()).toMatchObject({ existing: "farmers-cheese", error: expect.stringContaining("farmers-cheese") });
+    }
+    expect(kitchenStore.catalog()).toEqual(before);
+  });
+
   it("shows preorders on Today without phones, notes or last names", async () => {
     restaurant.placeOrder({ name: "Anna Petrova", phone: "510-555-0101", items: [{ item: "syrniki", quantity: 2 }], pickupTime: "11:00", notes: "gate code 1234" }, new Date("2026-12-04T18:00:00-08:00"));
     const today = await (await kitchen("/today")).json();
