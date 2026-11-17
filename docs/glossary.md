@@ -30,7 +30,7 @@ The words I use in the kitchen and on the screens, and the names they have in th
 
 **Prep** (`PrepTask`). A recipe to make and how many batches. This is the list on Today.
 
-**Shopping, Short** (`ShoppingLine`). What I have to buy after using stock: how much is needed, how much is on hand, how much is short. The Today screen calls it Short. The buy amount is rounded up to the item's biggest own unit, so eggs come out in cases.
+**Shopping, Short** (`ShoppingLine`). What I have to buy after using stock: how much is needed, how much is on hand, how much is short. The Today screen calls it Short. The buy amount is rounded up to the item's biggest own unit, so eggs come out in cases. A line rounded to a case also says what the case is and what the buy comes to in base units (`buyUnitBase`, `buyBase`): 2 cases of eggs is `buyBase` 360.
 
 **Netting.** Taking what's on hand off what a plan needs before deciding what to make or buy. In `explode`, stock is used first, and a sub-recipe's own stock is used before it makes more of it.
 
