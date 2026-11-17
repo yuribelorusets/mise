@@ -36,6 +36,7 @@ Write dates in expectations as `YYYY-MM-DD` and times as `HH:MM`, 24-hour.
     tools_not_called: [create_reservation]
     reply_matches: ["RK-[A-Z0-9]{6}"]       # regex; "(?i)" prefix for case-insensitive
     reply_must_not_include: ["Satay"]
+    reply_must_not_match: ["(?i)\\bI(?:'ve)? booked\\b"]   # regex the reply must not match
     events: [order.placed]
     language: ru                            # en | es | ru | fr
   notes: Why this scenario exists, in one sentence.

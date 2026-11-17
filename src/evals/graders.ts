@@ -10,6 +10,7 @@ export interface Expectation {
   tools_not_called?: string[];
   reply_matches?: string[];
   reply_must_not_include?: string[];
+  reply_must_not_match?: string[];
   events?: string[];
   language?: "en" | "es" | "ru" | "fr";
   /** Grade the outcome, not the path: what's in the store when the conversation ends. */
@@ -73,6 +74,7 @@ export function grade(exp: Expectation, reply: string, calls: ToolCallTrace[], e
   for (const p of exp.reply_matches ?? []) checks.push({ check: `reply matches /${p}/`, pass: toRegex(p).test(reply) });
   for (const s of exp.reply_must_not_include ?? [])
     checks.push({ check: `reply omits "${s}"`, pass: !reply.toLowerCase().includes(s.toLowerCase()) });
+  for (const p of exp.reply_must_not_match ?? []) checks.push({ check: `reply doesn't match /${p}/`, pass: !toRegex(p).test(reply) });
   for (const e of exp.events ?? []) checks.push({ check: `emitted ${e}`, pass: events.includes(e) });
   if (exp.language) {
     const got = detectLang(reply);

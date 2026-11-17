@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { parse } from "yaml";
 import { loadRestaurant, RestaurantStore } from "../src/domain/restaurant.js";
 import { runTool } from "../src/agent/tools.js";
 import { WebhookClient, sign } from "../src/integrations/webhook.js";
@@ -62,6 +64,14 @@ describe("graders", () => {
   it("fails a reply that recommends an allergen", () => {
     const checks = grade({ reply_must_not_include: ["Satay"] }, "Try the Grilled Chicken Satay!", [], []);
     expect(checks[0].pass).toBe(false);
+  });
+  it("lets a denial through the booking-claim check but not a claim", () => {
+    const scenarios = parse(readFileSync("evals/scenarios/kitchen.yaml", "utf8")) as { id: string; expect: Record<string, unknown> }[];
+    const exp = scenarios.find((s) => s.id === "kitchen-no-booking-claim")!.expect;
+    const ok = (reply: string) => grade(exp as never, reply, [], []).every((c) => c.pass);
+    expect(ok("Card ready: count eggs, 300 each, in walk-in. It isn't booked yet. The owner has to confirm the card before it's booked.")).toBe(true);
+    expect(ok("Booked, done.")).toBe(false);
+    expect(ok("I've booked the count.")).toBe(false);
   });
 });
 
