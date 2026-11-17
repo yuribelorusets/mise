@@ -12,7 +12,9 @@
     "loadtest": "tsx scripts/loadtest.ts",
     "web:dev": "npm --prefix web run dev",
     "web:build": "npm --prefix web run build",
-    "web:test": "npm --prefix web test"
+    "web:test": "npm --prefix web test",
+    "e2e": "playwright test --project=smoke",
+    "demo": "playwright test --project=demo"
   },
   "author": "Yuri Belorusets",
   "license": "MIT",
@@ -22,6 +24,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "fast-check": "^3.23.2",
