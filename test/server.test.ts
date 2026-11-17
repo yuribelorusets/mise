@@ -75,6 +75,16 @@ describe("http", () => {
     expect((await fetch(`${app.url}/assets/missing.js`)).status).toBe(404);
     app.close();
   });
+  it("serves the index page when web/dist sits under a dot directory", async () => {
+    const webDist = join(mkdtempSync(join(tmpdir(), "webdist-")), ".hidden", "dist");
+    mkdirSync(webDist, { recursive: true });
+    writeFileSync(join(webDist, "index.html"), '<html><body><div id="root"></div></body></html>');
+    const app = await start(createApp({ llm: new MockLLM(), webhook: new WebhookClient({ url: "", fallbackFile: null }), webDist }));
+    const res = await fetch(`${app.url}/count`, { headers: { accept: "text/html" } });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<div id="root">');
+    app.close();
+  });
   it("protects the owner dashboard and reports what happened", async () => {
     expect((await fetch(`${base}/admin/api/summary`)).status).toBe(401);
     expect((await fetch(`${base}/admin/api/summary`, { headers: { authorization: "Bearer nope" } })).status).toBe(401);

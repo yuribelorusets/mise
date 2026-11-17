@@ -213,7 +213,7 @@ export function createApp(opts: AppOptions = {}) {
   if (dir !== PUBLIC_DIR) {
     app.use((req, res, next) => {
       if (req.method !== "GET" || /^\/(api|admin)(\/|$)/.test(req.path) || extname(req.path) || !req.accepts("html")) return next();
-      res.set("Cache-Control", "no-cache").sendFile(join(dir, "index.html"));
+      res.set("Cache-Control", "no-cache").sendFile("index.html", { root: dir, dotfiles: "allow" });
     });
   }
 
