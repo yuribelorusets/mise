@@ -58,11 +58,12 @@ const str = (v: unknown, what: string) => {
 };
 
 export function stockView(events: readonly StockEvent[]): StockView {
-  const lastCount: StockView["lastCount"] = {};
-  const lastReceived: StockView["lastReceived"] = {};
+  // Item and location ids are owner-typed, so these keep no prototype: "constructor" must be a plain key.
+  const lastCount: StockView["lastCount"] = Object.create(null);
+  const lastReceived: StockView["lastReceived"] = Object.create(null);
   for (const e of events) {
     if (e.kind === "count") {
-      lastCount[e.item] ??= {};
+      lastCount[e.item] ??= Object.create(null) as StockView["lastCount"][string];
       lastCount[e.item][e.location] = { qty: e.qty, at: e.at };
     }
     if (e.kind === "receive") lastReceived[e.item] = e.at;

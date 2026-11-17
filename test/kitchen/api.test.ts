@@ -126,6 +126,18 @@ describe("kitchen API", () => {
     expect(kitchenStore.catalog()).toEqual(before);
   });
 
+  it("keeps counts of an item called constructor, at a location called name", async () => {
+    expect((await post("/items", { name: "constructor", baseUnit: "g" })).status).toBe(201);
+    expect((await post("/catalog/locations", { id: "name", name: "Name shelf", shelfOrder: ["constructor"] })).status).toBe(200);
+    const counted = await post("/counts", { clientId: "count-test-ctor-1", location: "name", lines: [{ item: "constructor", qty: 5, unit: "g" }] });
+    expect(counted.status).toBe(200);
+    const res = await kitchen("/stock");
+    expect(res.status).toBe(200);
+    const view = await res.json();
+    expect(Object.hasOwn(view.lastCount, "constructor")).toBe(true);
+    expect(view.lastCount.constructor.name.qty).toBe(5);
+  });
+
   it("shows preorders on Today without phones, notes or last names", async () => {
     restaurant.placeOrder({ name: "Anna Petrova", phone: "510-555-0101", items: [{ item: "syrniki", quantity: 2 }], pickupTime: "11:00", notes: "gate code 1234" }, new Date("2026-12-04T18:00:00-08:00"));
     const today = await (await kitchen("/today")).json();
