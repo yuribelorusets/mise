@@ -5,7 +5,10 @@
  */
 import { describe, it, expect } from "vitest";
 import type { Server } from "node:http";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { MemoryStore } from "../src/kitchen/memory-store.js";
+import { runKitchenTool } from "../src/kitchen/assistant/tools.js";
+import { ctx } from "./kitchen/assistant/fixtures.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../src/server.js";
@@ -126,5 +129,71 @@ describe("kitchen stock", () => {
     b.append([e]);
     const again = new FileStore(dir, "test", seed);
     expect(total(onHand(again.events()), "eggs")).toBe(180);
+  });
+});
+
+// ---- Found in the wave-2 pass ----
+
+describe("wave-2 pass", () => {
+  const owner = "syrniki-2026";
+  async function ownerApp(over: Parameters<typeof createApp>[0] = {}) {
+    const app = await start(createApp({ llm: new MockLLM(), webhook: quiet(), limits: { perMinute: 1000 }, ownerPasscode: owner, ...over }));
+    const res = await fetch(`${app.url}/api/owner/sign-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ passcode: owner }) });
+    const cookie = res.headers.get("set-cookie")!.split(";")[0];
+    return { ...app, cookie };
+  }
+
+  // Backlog: "Deleting the item a menu item makes breaks the owner's Today."
+  it.fails("keeps Today working after the item a menu item makes is deleted", async () => {
+    const seed: Catalog = JSON.parse(readFileSync("data/kitchens/ruki.json", "utf8"));
+    const kitchen = new MemoryStore({ ...seed, plans: [] });
+    const store = new RestaurantStore(ruki);
+    store.orders.push({ id: "RK-1", name: "Anna", phone: "5105550101", total: 12, pickupDate: ruki.popup.eventDate, pickupTime: "11:00", items: [{ id: "syrniki", name: "Syrniki", quantity: 2, price: 12 }] });
+    process.env.MISE_TODAY = "2026-12-04";
+    const app = await ownerApp({ kitchen, store });
+    const call = (m: string, p: string) => fetch(`${app.url}/api/kitchen${p}`, { method: m, headers: { "content-type": "application/json", cookie: app.cookie } });
+    try {
+      await call("DELETE", "/catalog/recipes/syrniki");
+      const del = await call("DELETE", "/catalog/items/syrniki");
+      expect(del.status).toBe(200); // the catalog accepts it; nothing checks the menu
+      expect((await call("GET", "/today")).status).toBe(200);
+    } finally {
+      app.close();
+    }
+  });
+
+  // Backlog: "Guest chat and the owner's assistant share one daily budget."
+  it.fails("keeps the owner's assistant working when guest chats have used the daily budget", async () => {
+    const ledger = new Ledger(undefined, "ruki");
+    const app = await ownerApp({ ledger, limits: { perMinute: 1000, dailyBudgetUsd: 5 } });
+    try {
+      ledger.logTurn({ at: new Date().toISOString(), sessionId: "guest", channel: "chat", user: "hi", reply: "hi", tools: [], handoff: false, model: "claude", inputTokens: 1, outputTokens: 1, costUsd: 6, ms: 1 });
+      const res = await fetch(`${app.url}/api/kitchen/assistant`, { method: "POST", headers: { "content-type": "application/json", cookie: app.cookie }, body: JSON.stringify({ sessionId: "s1", message: "what's on hand?" }) });
+      expect(res.status).toBe(200);
+    } finally {
+      app.close();
+    }
+  });
+
+  // Backlog: "The JSON-only check is case-sensitive and Express routes aren't."
+  it.fails("refuses a non-JSON write to /API/ the same as /api/", async () => {
+    const app = await ownerApp();
+    try {
+      const res = await fetch(`${app.url}/API/owner/sign-out`, { method: "POST", headers: { "content-type": "text/plain" }, body: "x" });
+      expect(res.status).toBe(415);
+    } finally {
+      app.close();
+    }
+  });
+
+  // Backlog: "An offered item's id can replace an item that's already there."
+  it.fails("doesn't offer a new item whose id is an existing item's id", () => {
+    // The screen saves { id: slug(name) }, and /catalog/items replaces a record with the same id.
+    expect(runKitchenTool("offer_new_item", { name: "Eggs!", baseUnit: "ml" }, ctx()).isError).toBe(true);
+  });
+
+  it.fails("doesn't offer a new item whose id would be empty", () => {
+    // slug("Сумах") is "", which the catalog route refuses, so Add can't work for a Russian name.
+    expect(runKitchenTool("offer_new_item", { name: "Сумах", baseUnit: "g" }, ctx()).isError).toBe(true);
   });
 });
