@@ -2,7 +2,7 @@
 
 What works today, screen by screen. For how the pieces fit, see [architecture](architecture.md). For the words, see the [glossary](glossary.md).
 
-The owner screens live in `web/src/pages/`. Each has a test next to it (`Today.test.tsx` and so on), and the server side is tested under `test/` and `test/kitchen/`. See [testing](testing.md).
+The owner screens live in `web/src/pages/`. Each one except sign-in has a test next to it (`Today.test.tsx` and so on), and the server side is tested under `test/` and `test/kitchen/`. See [testing](testing.md).
 
 ## Sign-in
 
@@ -26,7 +26,7 @@ If there's no stored plan but guests have ordered for a date, Today still shows 
 
 `web/src/pages/Count.tsx`, `POST /api/kitchen/counts`.
 
-I pick a location (walk-in, line) and walk the shelves in that location's shelf order. Each row starts at the last count. I change only what's different, or tap the check on a row to say it's counted and unchanged. Save writes one count event per changed row. A count sets the amount outright. Saving twice with the same `clientId` writes once, so a double tap or a retry on bad wifi is safe. A row the server rejects, such as a unit that doesn't convert, shows its own message.
+I pick a location (walk-in, dry storage) and walk the shelves in that location's shelf order. Each row starts at the last count. I change only what's different, or tap "Count as …" under a row to say it's counted and unchanged. Save writes one count event per changed row. A count sets the amount outright. Saving twice with the same `clientId` writes once, so a double tap or a retry on bad wifi is safe. A row the server rejects, such as a unit that doesn't convert, shows its own message.
 
 ## Stock
 

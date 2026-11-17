@@ -39,7 +39,7 @@ Everything in `src/kitchen/` below is plain functions over a `Catalog` and a lis
 - **Catalog** (`src/kitchen/catalog.ts`). Items, locations, recipes and plans. `validateCatalog` rejects duplicate or badly formed ids, units that don't convert, a recipe with no yield, two recipes making the same item, and recipe cycles. Each recipe makes an item ([decision 5](decisions/0005-every-recipe-makes-an-item.md)).
 - **Stock** (`src/kitchen/stock.ts`). Stock is an append-only list of events: receive, use, waste, count, move. On-hand is computed from the list each time and never stored ([decision 3](decisions/0003-stock-is-an-event-log.md)). A count sets the amount for one item in one location.
 - **Plan explosion** (`src/kitchen/plan.ts`). `explode` takes plan lines and what's on hand. It uses stock first, then makes the rest from recipes, going down through sub-recipes. It returns prep tasks with batch counts and a shopping list. Shopping rounds up to the item's biggest own unit, so eggs come out in cases.
-- **Cost and max batch** (`src/kitchen/cost.ts`). `batchCost` prices a batch from the latest price paid on a receive event, and lists items with no price yet. `maxBatch` binary-searches the most whole units you can make from what's available. It returns `Infinity` when stock covers the search limit.
+- **Cost and max batch** (`src/kitchen/cost.ts`). `batchCost` prices a batch from the latest price paid on a receive event, and lists items with no price yet. `maxBatch` binary-searches the most whole units you can make from what's available. It returns `Infinity` when stock covers the search limit. The default limit is 10,000, but every caller passes 1,000,000, so a real amount in grams never reads as unlimited. The `/api/kitchen/max-batch` route and the assistant's `max_batch` tool send `Infinity` as `max: null`, and the menu's `remaining()` treats it as no stock limit.
 
 ## Storage
 
@@ -61,7 +61,7 @@ Without `DATA_DIR`, the server warns that stock isn't saved and keeps everything
 Two details:
 
 - `POST /counts` takes a `clientId` and builds event ids from it, so a double tap on Save writes the count once.
-- Plans come from `plansByDate`, which adds preorder lines to the stored plan for the date, or makes a plan called `preorders-<date>` when only preorders exist. The catalog endpoint refuses a stored plan id that starts with `preorders-` and drops any stored line marked as a preorder, so the two can't be confused.
+- Plans come from `plansByDate`, which adds preorder lines to the stored plan for the date (the first one, if a date has several), or makes a plan called `preorders-<date>` when only preorders exist. The catalog endpoint refuses a stored plan id that starts with `preorders-` and drops any stored line marked as a preorder, so the two can't be confused.
 
 Sign-in is `src/ops/owner-auth.ts`, wired up in `src/server.ts` ([decision 11](decisions/0011-owner-sign-in.md)). `MISE_OWNER_PASSCODE` is hashed with scrypt at startup. A correct passcode at `POST /api/owner/sign-in` sets an `HttpOnly`, `SameSite=Strict` cookie, and the server keeps only a hash of the token in memory. Sessions last 30 days and end on restart. Failed attempts are limited per IP and overall. With no passcode set, sign-in answers 503. `requireOwner` guards all of `/api/kitchen`.
 

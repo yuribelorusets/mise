@@ -1,6 +1,6 @@
 # Testing
 
-There are four kinds of checks: unit tests, web tests, evals and a load test. None of them costs money unless I ask for it. Install with `npm ci` and `npm --prefix web ci`.
+There are four kinds of checks: unit tests, web tests, evals and a load test. None of them costs money on the mock. Evals call Claude when `ANTHROPIC_API_KEY` is set and I leave out `--llm mock`. Install with `npm ci` and `npm --prefix web ci`.
 
 ## Unit tests
 
@@ -31,7 +31,7 @@ npm run web:test
 npm run web:build
 ```
 
-`web:test` runs vitest with jsdom inside `web/`. Each screen has a test next to it, and so do the quantity input, the tab bar and the proposal card. `web/src/test/fake-api.ts` stands in for the server and `web/src/test/render.tsx` renders a screen with the router and React Query set up. `web:build` type-checks the app and builds it into `web/dist`.
+`web:test` runs vitest with jsdom inside `web/`. Each screen except sign-in has a test next to it, and so do the quantity input, the tab bar and the proposal card. `web/src/test/fake-api.ts` stands in for the server and `web/src/test/render.tsx` renders a screen with the router and React Query set up. `web:build` type-checks the app and builds it into `web/dist`.
 
 ## Evals
 
@@ -80,6 +80,6 @@ This way the list of known problems is checked by CI. A finding can't be fixed w
 
 ## Why `MISE_TODAY` is frozen
 
-Orders depend on the date: pickup windows, the order cutoff, "tomorrow", whether an order is for this pop-up. The Ruki config has its event on 2026-12-05 and the cutoff on 2026-12-04 at 20:00. If tests used the real clock, they'd pass this week and fail next. So `now()` in `src/config.ts` returns `MISE_TODAY` at 18:00 local when it's set. The eval runner, the load test and the tests that need a date all set it to `2026-12-04`, the Friday before the pop-up. The kitchen scenarios use the same day, so "Saturday" always means 2026-12-05.
+Orders depend on the date: pickup windows, the order cutoff, "tomorrow", whether an order is for this pop-up. The Ruki config has its event on 2026-12-05 and the cutoff on 2026-12-04 at 20:00. If tests used the real clock, they'd pass this week and fail next. So `now()` in `src/config.ts` returns `MISE_TODAY` at 18:00 Pacific standard time (UTC-8) when it's set. The eval runner, the load test and the tests that need a date all set it to `2026-12-04`, the Friday before the pop-up. The kitchen scenarios use the same day, so "Saturday" always means 2026-12-05.
 
 Tests that need the real clock delete the variable first and put it back after.

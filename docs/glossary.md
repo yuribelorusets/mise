@@ -34,7 +34,7 @@ The words I use in the kitchen and on the screens, and the names they have in th
 
 **Netting.** Taking what's on hand off what a plan needs before deciding what to make or buy. In `explode`, stock is used first, and a sub-recipe's own stock is used before it makes more of it.
 
-**Max batch** (`maxBatch` in `src/kitchen/cost.ts`). The most whole units of an item I can make from current stock, going down through sub-recipes. When stock isn't the limit it comes back as no limit.
+**Max batch** (`maxBatch` in `src/kitchen/cost.ts`). The most whole units of an item I can make from current stock, going down through sub-recipes. When stock isn't the limit it comes back as `Infinity` in code and `null` from the API and the assistant.
 
 **Cost** (`batchCost`). What a batch costs at the latest price paid for each ingredient. An ingredient with no price yet is listed as missing and left out, so the figure is a floor.
 
