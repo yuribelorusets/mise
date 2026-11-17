@@ -17,5 +17,6 @@ Short records of the decisions that shaped Mise: the context, what I decided, wh
 | 11 | [Owner sign-in: a passcode, a session cookie, and JSON-only writes](0011-owner-sign-in.md) |
 | 12 | [Preorders feed the plan, and selling from stock is opt-in](0012-preorders-and-stock.md) |
 | 13 | [Built with agents, with every branch reviewed](0013-built-with-agents.md) |
+| 14 | [The server makes item ids, and adding an item only creates](0014-the-server-makes-item-ids.md) |
 
 New design decisions get a record here, numbered in order.
