@@ -31,6 +31,7 @@ test("marks the preorder lines and leaves manual lines unmarked", async () => {
   expect(within(manual).queryByText("Preorder")).not.toBeInTheDocument();
   expect(preorder).toHaveTextContent(/14/);
   expect(within(preorder).getByText("Preorder")).toBeInTheDocument();
+  expect(within(preorder).queryByRole("spinbutton")).not.toBeInTheDocument();
   expect(screen.getAllByText("Preorder")).toHaveLength(2);
 });
 
