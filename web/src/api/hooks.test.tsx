@@ -57,6 +57,15 @@ test("a 401 from any owner route marks the owner as signed out", async () => {
   expect(await screen.findByText("out")).toBeInTheDocument();
 });
 
+test("a 401 clears the cached kitchen data, not only the owner", async () => {
+  vi.stubGlobal("fetch", fakeApi({ "GET /api/kitchen/stock": () => ({ status: 401, error: "Sign in first." }) }));
+  const qc = makeQueryClient();
+  qc.setQueryData(keys.today, todayView);
+  await qc.fetchQuery({ queryKey: keys.stock, queryFn: () => apiGet("/api/kitchen/stock"), retry: false }).catch(() => {});
+  expect(qc.getQueryData(keys.today)).toBeUndefined();
+  expect(qc.getQueryData(keys.owner)).toBeNull();
+});
+
 test("a confirm refetches stock, today and proposals, but not the catalog", async () => {
   const calls: string[] = [];
   vi.stubGlobal("fetch", fakeApi({ "POST /api/kitchen/proposals/p-1/confirm": () => confirmResult }, calls));
