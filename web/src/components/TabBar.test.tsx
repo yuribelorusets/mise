@@ -20,6 +20,18 @@ test("the tab bar reaches every owner screen", async () => {
   expect(screen.getByRole("link", { name: /assistant/i })).toBeInTheDocument();
 });
 
+test("the assistant strip is hidden on the assistant screen itself", async () => {
+  vi.stubGlobal("fetch", fakeApi({
+    "GET /api/owner/me": () => ({ owner: true }),
+    "GET /api/kitchen/catalog": () => catalog,
+    "GET /api/kitchen/proposals": () => [],
+  }));
+  renderWith(<AppRoutes />, { path: "/assistant" });
+  expect(await screen.findByRole("heading", { level: 1, name: /assistant/i })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /ask the assistant/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Today" })).toBeInTheDocument();
+});
+
 test("the public order page has no owner tab bar", () => {
   vi.stubGlobal("fetch", fakeApi({}));
   renderWith(<AppRoutes />, { path: "/order" });
