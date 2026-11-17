@@ -70,6 +70,44 @@ test("shows the server's 422 problem under the row it's about", async () => {
   expect(screen.getAllByText("Eggs can't be measured in each.")).toHaveLength(1);
 });
 
+test("a never-counted item left at zero can be marked counted and saved as zero", async () => {
+  const saves: Save[] = [];
+  serve({ "POST /api/kitchen/counts": (b: Save) => (saves.push(b), { events: ["count-1"] }) });
+  renderWith(<Count />);
+  await userEvent.click(await screen.findByRole("button", { name: "Dry store" }));
+  const save = screen.getByRole("button", { name: /save count/i });
+  expect(save).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Mark Sugar counted" }));
+  expect(screen.getByRole("button", { name: "Mark Sugar counted" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByRole("button", { name: /save count \(1 changed\)/i }));
+  await waitFor(() => expect(saves).toHaveLength(1));
+  expect(saves[0].lines).toEqual([{ item: "sugar", qty: 0, unit: "kg" }]);
+});
+
+test("amounts of g and ml items go as kg and L, with the value as entered", async () => {
+  const saves: Save[] = [];
+  serve({ "POST /api/kitchen/counts": (b: Save) => (saves.push(b), { events: ["count-1"] }) });
+  renderWith(<Count />);
+  await userEvent.click(await screen.findByRole("button", { name: "More Farmer's cheese" }));
+  await userEvent.click(screen.getByRole("button", { name: /save count/i }));
+  await waitFor(() => expect(saves).toHaveLength(1));
+  expect(saves[0].lines).toEqual([{ item: "farmers-cheese", qty: 2.768, unit: "kg" }]);
+});
+
+test("changing the lines after a failed save sends a new clientId", async () => {
+  const saves: Save[] = [];
+  serve({ "POST /api/kitchen/counts": (b: Save) => (saves.push(b), { status: 500, error: "The server hiccuped." }) });
+  renderWith(<Count />);
+  await userEvent.click(await screen.findByRole("button", { name: "More Eggs" }));
+  await userEvent.click(screen.getByRole("button", { name: /save count/i }));
+  await screen.findByRole("alert");
+  await userEvent.click(screen.getByRole("button", { name: "More Eggs" }));
+  await userEvent.click(screen.getByRole("button", { name: /save count/i }));
+  await waitFor(() => expect(saves).toHaveLength(2));
+  expect(saves[1].lines[0].qty).toBe(62);
+  expect(saves[1].clientId).not.toBe(saves[0].clientId);
+});
+
 test("Save is off until something has changed", async () => {
   serve();
   renderWith(<Count />);

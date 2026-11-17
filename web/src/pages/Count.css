@@ -72,6 +72,22 @@
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
+.count__mark {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-align: left;
+}
+.count__mark[aria-pressed="true"] {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
 .count__problem,
 .count__error {
   font-size: var(--text-sm);

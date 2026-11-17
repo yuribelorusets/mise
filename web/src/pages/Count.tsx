@@ -21,6 +21,8 @@ export default function Count() {
   // What the owner has changed, by "location/item". Anything not here is still at its last count.
   const [edits, setEdits] = useState<Record<string, number>>({});
   const [saved, setSaved] = useState(false);
+  // Rows the owner has marked counted at their current value, so a deliberate zero (or an unchanged count) is sent too.
+  const [marks, setMarks] = useState<Set<string>>(new Set());
 
   const head = (
     <header className="page-head">
@@ -43,7 +45,8 @@ export default function Count() {
     .map((item) => {
       const last = shown(stock.data.lastCount[item.id]?.[loc.id]?.qty ?? 0, item);
       const value = edits[`${loc.id}/${item.id}`] ?? last;
-      return { item, last, value, counted: stock.data.lastCount[item.id]?.[loc.id] !== undefined, changed: value !== last };
+      const marked = marks.has(`${loc.id}/${item.id}`);
+      return { item, last, value, marked, counted: stock.data.lastCount[item.id]?.[loc.id] !== undefined, changed: value !== last || marked };
     });
   const changedRows = rows.filter((r) => r.changed);
 
@@ -61,6 +64,7 @@ export default function Count() {
         onSuccess: () => {
           setSaved(true);
           setEdits((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !k.startsWith(`${loc.id}/`))));
+          setMarks((m) => new Set([...m].filter((k) => !k.startsWith(`${loc.id}/`))));
         },
       },
     );
@@ -94,6 +98,26 @@ export default function Count() {
                   <span className="count__name">{r.item.name}</span>
                   <span className="count__last tnum">{r.counted ? `last ${r.last} ${unit}` : "not counted yet"}</span>
                   {problem && <span className="count__problem">{problem}</span>}
+                  {r.value === r.last && (
+                    <button
+                      type="button"
+                      className="count__mark"
+                      aria-pressed={r.marked}
+                      aria-label={`Mark ${r.item.name} counted`}
+                      onClick={() => {
+                        save.reset();
+                        setSaved(false);
+                        setMarks((m) => {
+                          const next = new Set(m);
+                          const key = `${loc.id}/${r.item.id}`;
+                          if (!next.delete(key)) next.add(key);
+                          return next;
+                        });
+                      }}
+                    >
+                      {r.marked ? `Counted at ${r.value} ${unit}` : `Count as ${r.value} ${unit}`}
+                    </button>
+                  )}
                 </div>
                 <QtyInput
                   label={r.item.name}
