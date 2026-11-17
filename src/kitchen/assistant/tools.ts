@@ -158,7 +158,7 @@ function readTool(name: string, input: Record<string, unknown>, ctx: KitchenTool
       const { shopping } = explode(c, plan.lines, totals(onHand(ctx.store.events())));
       const lines = shopping.map((s) => {
         const item = resolve(c, s.item);
-        return { item: s.item, name: item.name, baseUnit: item.baseUnit, need: s.need, have: s.have, buy: s.buy, ...(s.buyQty !== undefined ? { buyQty: s.buyQty, buyUnit: s.buyUnit } : {}) };
+        return { item: s.item, name: item.name, baseUnit: item.baseUnit, need: s.need, have: s.have, buy: s.buy, ...(s.buyQty !== undefined ? { buyQty: s.buyQty, buyUnit: s.buyUnit, buyUnitBase: s.buyUnitBase, buyBase: s.buyBase } : {}) };
       });
       return ok({ date: plan.date, lines });
     }

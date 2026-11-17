@@ -3,7 +3,7 @@ import { itemById } from "./catalog.js";
 import { toBase } from "./units.js";
 
 export interface PrepTask { recipe: string; item: string; qty: number; batches: number } // qty in base units of the item made
-export interface ShoppingLine { item: string; need: number; have: number; buy: number; buyUnit?: string; buyQty?: number }
+export interface ShoppingLine { item: string; need: number; have: number; buy: number; buyUnit?: string; buyQty?: number; buyUnitBase?: number; buyBase?: number }
 export interface PlanResult { prep: PrepTask[]; shopping: ShoppingLine[]; uses: Record<string, number> }
 
 /** The biggest item-specific unit, e.g. "case" for eggs, used to round the shopping list up. */
@@ -45,7 +45,9 @@ export function explode(c: Catalog, lines: PlanLine[], available: Record<string,
   const shopping = Object.entries(short).map(([id, buy]): ShoppingLine => {
     const line: ShoppingLine = { item: id, need: needed[id], have: Math.max(have[id] ?? 0, 0), buy };
     const pu = purchaseUnit(itemById(c, id));
-    return pu ? { ...line, buyUnit: pu[0], buyQty: Math.max(1, Math.ceil((buy / pu[1]) * (1 - 1e-9))) } : line;
+    if (!pu) return line;
+    const buyQty = Math.max(1, Math.ceil((buy / pu[1]) * (1 - 1e-9)));
+    return { ...line, buyUnit: pu[0], buyQty, buyUnitBase: pu[1], buyBase: buyQty * pu[1] };
   });
   return { prep: [...prep.values()], shopping, uses };
 }

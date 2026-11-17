@@ -11,7 +11,7 @@ import type { ProductionPlan } from "../../../src/kitchen/types";
 export type OnHand = Record<string, Record<string, number>>;
 
 export interface PrepTask { recipe: string; item: string; qty: number; batches: number } // qty in base units of the item made
-export interface ShoppingLine { item: string; need: number; have: number; buy: number; buyUnit?: string; buyQty?: number }
+export interface ShoppingLine { item: string; need: number; have: number; buy: number; buyUnit?: string; buyQty?: number; buyUnitBase?: number; buyBase?: number }
 
 /** What GET /api/kitchen/plans/:id/result returns: explode's result with names added. */
 export interface PlanResult {

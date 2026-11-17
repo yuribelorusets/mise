@@ -28,6 +28,13 @@ describe("kitchen read tools", () => {
     expect(got.lines.map((l) => [l.item, l.buy])).toEqual(want.map((l) => [l.item, l.buy]));
   });
 
+  it("passes the buy unit size through on the shopping list", () => {
+    const got = runKitchenTool("shopping_list", {}, ctx()).content as { lines: { item: string; buyQty?: number; buyUnitBase?: number; buyBase?: number }[] };
+    const eggs = got.lines.find((l) => l.item === "eggs")!;
+    expect(eggs.buyUnitBase).toBe(180);
+    expect(eggs.buyBase).toBe(eggs.buyQty! * 180);
+  });
+
   it("names prep tasks by recipe", () => {
     const got = runKitchenTool("prep_list", {}, ctx()).content as { tasks: { recipe: string; recipeName: string }[] };
     expect(got.tasks.length).toBeGreaterThan(0);

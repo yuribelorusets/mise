@@ -16,7 +16,7 @@ describe("explode", () => {
     ]);
     expect(r.shopping).toEqual([
       { item: "cheese", need: 3000, have: 0, buy: 3000 },
-      { item: "eggs", need: 12, have: 0, buy: 12, buyUnit: "case", buyQty: 1 },
+      { item: "eggs", need: 12, have: 0, buy: 12, buyUnit: "case", buyQty: 1, buyUnitBase: 180, buyBase: 180 },
     ]);
   });
   it("uses prepped stock before making more", () => {
@@ -42,7 +42,7 @@ describe("explode", () => {
     const r = explode(c, plan(40), { cheese: -500, eggs: -1 });
     expect(r.shopping).toEqual([
       { item: "cheese", need: 3000, have: 0, buy: 3000 },
-      { item: "eggs", need: 12, have: 0, buy: 12, buyUnit: "case", buyQty: 1 },
+      { item: "eggs", need: 12, have: 0, buy: 12, buyUnit: "case", buyQty: 1, buyUnitBase: 180, buyBase: 180 },
     ]);
     expect(r.uses).toEqual({});
   });
@@ -59,6 +59,10 @@ describe("shopping rounding", () => {
     expect(eggs(181).buyQty).toBe(2);
     expect(eggs(360).buyQty).toBe(2);
     expect(eggs(180).buyQty).toBe(1);
+  });
+  it("says how big the buy unit is and how much is bought", () => {
+    expect(eggs(12)).toMatchObject({ buyQty: 1, buyUnitBase: 180, buyBase: 180 });
+    expect(eggs(181)).toMatchObject({ buyQty: 2, buyUnitBase: 180, buyBase: 360 });
   });
   it("always buys at least one unit when there is a shortage", () => {
     const line = eggs(1e-8);
