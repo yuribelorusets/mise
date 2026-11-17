@@ -136,3 +136,63 @@ test("a discarded proposal is a one-line stub with its lines behind a disclosure
   expect(details).toHaveAttribute("open");
   expect(within(details).getByRole("listitem", { name: "Use Flour" })).toBeInTheDocument();
 });
+
+test("after a 409 turns the card stale, Refresh clears the old error and Confirm works again", async () => {
+  let current: ProposalView = openProposal;
+  serve(() => [current], {
+    "POST /api/kitchen/proposals/:id/confirm": () => {
+      current = { ...openProposal, stale: true, basedOn: 200 };
+      return { status: 409, error: "Stock changed since this was made. Refresh it first." };
+    },
+    "POST /api/kitchen/proposals/:id/refresh": () => (current = { ...openProposal, stale: false, basedOn: 213 }),
+  });
+  renderWith(<Cards />);
+  await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Refresh" }));
+  await waitFor(() => expect(screen.queryByText("Stale")).not.toBeInTheDocument());
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Confirm" })).toBeEnabled();
+});
+
+test("a stale card shows one message, not the status line and the 409 text", async () => {
+  let current: ProposalView = openProposal;
+  serve(() => [current], {
+    "POST /api/kitchen/proposals/:id/confirm": () => {
+      current = { ...openProposal, stale: true };
+      return { status: 409, error: "Stock changed since this was made. Refresh it first." };
+    },
+  });
+  renderWith(<Cards />);
+  await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+  expect(await screen.findByText(/before booking/i)).toBeInTheDocument();
+  expect(screen.queryByText(/refresh it first/i)).not.toBeInTheDocument();
+});
+
+test("a 422's problems are dropped once the card is refreshed", async () => {
+  let current: ProposalView = openProposal;
+  serve(() => [current], {
+    "POST /api/kitchen/proposals/:id/confirm": () => {
+      current = { ...openProposal, stale: true, basedOn: 200 };
+      return { status: 422, error: "Check.", problems: [null, "Old problem.", null] };
+    },
+    "POST /api/kitchen/proposals/:id/refresh": () => (current = { ...openProposal, basedOn: 213 }),
+  });
+  renderWith(<Cards />);
+  await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Refresh" }));
+  await waitFor(() => expect(screen.queryByText("Old problem.")).not.toBeInTheDocument());
+  expect(screen.getByRole("button", { name: "Confirm" })).toBeEnabled();
+});
+
+test("a 404 on confirm refetches the proposals, and the card goes with the server's list", async () => {
+  let list: ProposalView[] = [openProposal];
+  serve(() => list, {
+    "POST /api/kitchen/proposals/:id/confirm": () => {
+      list = [];
+      return { status: 404, error: "There's no proposal with that id." };
+    },
+  });
+  renderWith(<Cards />);
+  await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Proposal" })).not.toBeInTheDocument());
+});

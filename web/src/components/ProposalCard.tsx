@@ -26,6 +26,14 @@ export default function ProposalCard({ proposal, catalog }: Props) {
   // Problems the owner has dealt with by changing the line, or that a 422 just sent, over the ones the proposal came with.
   const [problemOverride, setProblemOverride] = useState<Record<number, string | null>>({});
 
+  // The server moved on (a refresh, a refetch after a 409): what we kept about the last attempt is out of date.
+  const [seen, setSeen] = useState({ basedOn: proposal.basedOn, stale: proposal.stale });
+  if (seen.basedOn !== proposal.basedOn || seen.stale !== proposal.stale) {
+    setSeen({ basedOn: proposal.basedOn, stale: proposal.stale });
+    setProblemOverride({});
+    confirm.reset();
+  }
+
   const open = proposal.status === "open";
   const done = proposal.status === "confirmed";
   const gone = proposal.status === "discarded";
@@ -151,13 +159,13 @@ export default function ProposalCard({ proposal, catalog }: Props) {
         </ul>
       )}
 
-      {confirm.error && !hasProblem && <p className="pcard__error" role="alert">{confirm.error.message}</p>}
+      {open && !stale && confirm.error && !hasProblem &&<p className="pcard__error" role="alert">{confirm.error.message}</p>}
       {(discard.error || refresh.error) && <p className="pcard__error" role="alert">{(discard.error ?? refresh.error)!.message}</p>}
 
       {open && (
         <div className="pcard__actions">
           {stale && (
-            <button type="button" className="btn pcard__refresh" disabled={busy} onClick={() => refresh.mutate({ id: proposal.id })}>Refresh</button>
+            <button type="button" className="btn pcard__refresh" disabled={busy} onClick={() => refresh.mutate({ id: proposal.id }, { onSuccess: () => { setProblemOverride({}); confirm.reset(); } })}>Refresh</button>
           )}
           <button type="button" className="btn" disabled={busy} onClick={() => discard.mutate({ id: proposal.id })}>Discard</button>
           <button type="button" className="btn btn--primary" disabled={stale || hasProblem || busy} onClick={submit}>

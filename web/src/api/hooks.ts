@@ -173,7 +173,7 @@ export function useConfirmProposal() {
     },
     // Someone else booked it, or stock moved: the list says which, and the card follows.
     onError: (e) => {
-      if (e instanceof ApiError && (e.status === 409 || e.status === 422)) void qc.invalidateQueries({ queryKey: keys.proposals });
+      if (e instanceof ApiError && (e.status === 404 || e.status === 409 || e.status === 422)) void qc.invalidateQueries({ queryKey: keys.proposals });
     },
   });
 }
