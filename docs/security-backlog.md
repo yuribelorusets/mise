@@ -38,6 +38,10 @@ The entries below come from the wave-2 branch reviews (`feat/kitchen-api` and `f
 - **[low] A server error on `/api/owner/me` shows the sign-in screen.** A 500 or a dropped connection reads as signed out, so the owner is asked for the passcode while the server is down. Show an error instead. Found reviewing `feat/web-wired`.
 - **[low] Restored chat cards can show Confirm for a proposal the server no longer has.** Assistant messages persist in `sessionStorage` with proposal snapshots. A 404 on confirm now refetches the list, but the card falls back to its snapshot. Show it as gone instead. Found reviewing `feat/web-wired`.
 - **[low] The guest mock keeps the last word as the guest's name.** "Anna Petrova 510-555-0142" is stored as "Petrova", so Today shows a surname in demos. Only the mock is affected. Found checking `feat/web-wired` in the browser.
+- **[medium] Guests can read the kitchen's capacity when selling from stock is on.** With `popup.sellFromStock` true, `remaining` includes what stock can make, and `search_menu` and the "Only N left" error pass it to the guest chat. Give guests `soldOut` and a count capped at `maxPerItem`. Off by default for Ruki. Found reviewing `feat/preorders-plan` (wave 2).
+- **[medium] One order for two dishes can oversell an ingredient they share.** Each line is checked against capacity on its own, so the maximum of A plus the maximum of B passes when they share the last flour. After the per-line checks, explode all the order's lines together against what's left. Only matters with `sellFromStock` on. Found reviewing `feat/preorders-plan`.
+- **[medium] Capacity reads one plan per date.** It sets aside the first plan for the event date only, and ignores other plans for the same date and plans for other dates that draw on the same stock. Fine for one pop-up date with one plan. Found reviewing `feat/preorders-plan`.
+- **[low] `sold` and capacity can count different orders.** `sold` counts every order in the ledger, while capacity counts only orders for `popup.eventDate`. That holds today because `placeOrder` always uses the event date. Found reviewing `feat/preorders-plan`.
 
 ## Fixed
 
