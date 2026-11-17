@@ -115,6 +115,12 @@ describe("kitchen API", () => {
     expect((await kitchen("/max-batch?item=syrniki")).status).toBe(400);
   });
 
+  it("answers null for a max batch that stock doesn't limit", async () => {
+    await post("/catalog/items", { id: "tea-test", name: "Tea", aliases: [], baseUnit: "each", units: {}, allergens: [] });
+    await post("/catalog/recipes", { id: "tea-test", name: "Tea", makes: "tea-test", yield: { qty: 1, unit: "each" }, components: [] });
+    expect(await (await kitchen("/max-batch?item=tea-test&unit=each")).json()).toEqual({ max: null });
+  });
+
   it("serves the read routes", async () => {
     expect((await (await kitchen("/catalog")).json()).items.length).toBeGreaterThan(0);
     const stock = await (await kitchen("/stock")).json();
