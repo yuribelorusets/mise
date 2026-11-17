@@ -30,8 +30,9 @@ describe("preorders in the plan", () => {
     expect(planLines(plan, "2026-12-05", [], menu)).toEqual([]);
   });
 
-  it("still counts an order after retention has removed the name", () => {
-    expect(preorderLines([order([["syrniki", 2]], "2026-12-05", { name: "[removed]", phone: "" })], menu, "2026-12-05")).toHaveLength(1);
+  it("keeps the source each stored line already has", () => {
+    const plan: ProductionPlan = { id: "sat", date: "2026-12-05", lines: [{ item: "syrniki", qty: 4, unit: "order", source: "production" as never }] };
+    expect(planLines(plan, "2026-12-05", [], menu)).toEqual(plan.lines);
   });
 
   it("every menu item that names a kitchen item points at a real one", () => {

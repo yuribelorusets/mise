@@ -23,7 +23,7 @@ export function preorderLines(orders: readonly Order[], menu: readonly MenuItem[
 
 /** The plan's own lines for the date, then the preorder lines. A preorder line stored in the plan is ignored. */
 export function planLines(plan: ProductionPlan | null | undefined, date: string, orders: readonly Order[], menu: readonly MenuItem[]): PlanLine[] {
-  const own = (plan?.lines ?? []).filter((l) => l.source !== "preorder").map((l) => ({ ...l, source: "manual" as const }));
+  const own = (plan?.lines ?? []).filter((l) => l.source !== "preorder");
   return [...own, ...preorderLines(orders, menu, date)];
 }
 
