@@ -120,6 +120,8 @@ export interface ConfirmResult {
 
 /** The assistant met a name it doesn't know and offers to add it. Nothing is written until the owner says yes. */
 export interface NewItemOffer {
+  /** What the item will be saved as. Worked out by the server, never by the screen. */
+  id: string;
   name: string;
   baseUnit: BaseUnit;
   raw?: string;

@@ -3,6 +3,18 @@ import { factor } from "./units.js";
 
 export const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+const RU: Record<string, string> = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "i", к: "k", л: "l", м: "m",
+  н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "shch",
+  ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+};
+
+/** The id an item with this name is saved under, or "" when the name has no letters or digits to build one from. */
+export function itemIdFor(name: string): string {
+  const latin = [...name.toLowerCase()].map((ch) => RU[ch] ?? ch).join("");
+  return latin.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
 const dupes = (ids: string[]) => ids.filter((id, i) => ids.indexOf(id) !== i);
 
 export function itemById(c: Catalog, id: string): Item {

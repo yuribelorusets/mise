@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateCatalog, findItem } from "../../src/kitchen/catalog.js";
+import { validateCatalog, findItem, itemIdFor, ID_PATTERN } from "../../src/kitchen/catalog.js";
 import type { Catalog } from "../../src/kitchen/types.js";
 
 const base = (): Catalog => ({
@@ -57,5 +57,27 @@ describe("findItem", () => {
     expect(findItem(base(), "творог")?.id).toBe("cheese");
     expect(findItem(base(), "farmer's cheese")?.id).toBe("cheese");
     expect(findItem(base(), "sugar")).toBeUndefined();
+  });
+});
+
+describe("itemIdFor", () => {
+  it("lowercases and dashes Latin names", () => {
+    expect(itemIdFor("Eggs!")).toBe("eggs");
+    expect(itemIdFor("Sour cream (20%)")).toBe("sour-cream-20");
+  });
+  it("transliterates Russian", () => {
+    expect(itemIdFor("Сумах")).toBe("sumakh");
+    expect(itemIdFor("Творог 9%")).toBe("tvorog-9");
+    expect(itemIdFor("Ёж Щука Юла Яма Чай Шея Цех Жук Подъезд Соль Йод")).toBe("ezh-shchuka-yula-yama-chai-sheya-tsekh-zhuk-podezd-sol-iod");
+  });
+  it("gives an empty id when nothing is usable", () => {
+    expect(itemIdFor("!!!")).toBe("");
+    expect(itemIdFor("🥚")).toBe("");
+  });
+  it("always gives a valid id or nothing", () => {
+    for (const n of ["Eggs!", "Сумах", "--a--b--", "  ", "x_y z", "Ёё"]) {
+      const id = itemIdFor(n);
+      expect(id === "" || ID_PATTERN.test(id)).toBe(true);
+    }
   });
 });

@@ -1,5 +1,5 @@
 import type { ToolSpec } from "../../llm/types.js";
-import { findItem } from "../catalog.js";
+import { findItem, itemIdFor } from "../catalog.js";
 import { batchCost, maxBatch } from "../cost.js";
 import { explode } from "../plan.js";
 import { onHand, totals } from "../stock.js";
@@ -251,7 +251,7 @@ function offer(input: Record<string, unknown>, ctx: KitchenToolContext): Kitchen
   if (known) throw new ToolError(`${known.name} is already in the catalog as "${known.id}". Use that.`);
   if (ctx.offers.some((o) => o.name.toLowerCase() === name.toLowerCase())) throw new ToolError(`${name} is already offered.`);
   if (ctx.offers.length >= 5) throw new ToolError("That's enough new items for one message. Ask the owner to deal with these first.");
-  const o: NewItemOffer = { name, baseUnit: input.baseUnit as BaseUnit, ...(typeof input.raw === "string" ? { raw: input.raw.slice(0, 200) } : {}) };
+  const o: NewItemOffer = { id: itemIdFor(name), name, baseUnit: input.baseUnit as BaseUnit, ...(typeof input.raw === "string" ? { raw: input.raw.slice(0, 200) } : {}) };
   ctx.offers.push(o);
   return ok({ offered: true, added: false, note: "Nothing is added until the owner taps Add." });
 }

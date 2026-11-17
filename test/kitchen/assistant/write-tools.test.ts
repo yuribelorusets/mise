@@ -25,7 +25,7 @@ describe("kitchen write tools", () => {
     const c = ctx();
     const r = runKitchenTool("offer_new_item", { name: "Sumac", baseUnit: "g", raw: "3 kg sumac" }, c);
     expect(r.content).toMatchObject({ offered: true, added: false });
-    expect(c.offers).toEqual([{ name: "Sumac", baseUnit: "g", raw: "3 kg sumac" }]);
+    expect(c.offers).toEqual([{ id: "sumac", name: "Sumac", baseUnit: "g", raw: "3 kg sumac" }]);
     expect(c.store.catalog().items.some((i) => /sumac/i.test(i.name))).toBe(false);
   });
 

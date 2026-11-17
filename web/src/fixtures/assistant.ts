@@ -60,7 +60,7 @@ export const eggsReply: AssistantReply = {
 export const beetsReply: AssistantReply = {
   reply: "I don't have pickled beets on the list.",
   proposals: [],
-  offers: [{ name: "Pickled beets", baseUnit: "g", raw: "6 jars pickled beets" }],
+  offers: [{ id: "pickled-beets", name: "Pickled beets", baseUnit: "g", raw: "6 jars pickled beets" }],
   model: "mock",
   usage,
 };
