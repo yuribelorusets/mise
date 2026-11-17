@@ -118,6 +118,7 @@ export function kitchenRouter(deps: KitchenApiDeps) {
     const kind = kindOf(req.params.kind);
     const rec = req.body;
     if (typeof rec !== "object" || rec === null || Array.isArray(rec) || typeof rec.id !== "string" || !rec.id) throw new BadRequest("Send one record with an id.");
+    if (kind === "plans" && rec.id.startsWith("preorders-")) return void res.status(422).json({ error: 'A plan id can\'t start with "preorders-".', errors: ['A plan id can\'t start with "preorders-".'] });
     if (kind === "plans" && Array.isArray(rec.lines)) rec.lines = rec.lines.filter((l: { source?: unknown }) => l?.source !== "preorder");
     changeCatalog((c) => {
       const list = c[kind] as { id: string }[];

@@ -134,6 +134,17 @@ describe("kitchen API", () => {
     expect(kitchenStore.catalog().plans.find((p) => p.id === "plan-dec-19")!.lines).toEqual([lines[0]]);
   });
 
+  it("refuses a saved plan whose id looks like a made-up preorder plan", async () => {
+    const res = await post("/catalog/plans", { id: "preorders-2026-12-26", date: "2026-12-26", lines: [] });
+    expect(res.status).toBe(422);
+    expect(kitchenStore.catalog().plans.some((p) => p.id.startsWith("preorders-"))).toBe(false);
+  });
+
+  it("shows the preorder lines in Today's plan", async () => {
+    const today = await (await kitchen("/today")).json();
+    expect(today.plan.lines).toContainEqual({ item: "syrniki", qty: 2, unit: "order", source: "preorder" });
+  });
+
   it("refuses to start when a menu item makes something the kitchen doesn't have", () => {
     const base = loadRestaurant("ruki");
     const wrong = (makes: { item: string; unit: string }) => ({ ...base, menu: base.menu.map((m) => (m.id === "syrniki" ? { ...m, makes } : m)) });
