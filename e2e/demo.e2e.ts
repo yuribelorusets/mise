@@ -98,6 +98,7 @@ test("walkthrough", async ({ page, context, browser }) => {
   // 7. Stock
   await page.getByRole("link", { name: "Stock" }).click();
   await expect(page.getByRole("button", { name: /^Eggs/ })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await shot("stock");
   await page.getByRole("button", { name: /^Eggs/ }).click();
   await expect(page.getByRole("table", { name: "Eggs history" })).toBeVisible();
@@ -132,12 +133,8 @@ test("walkthrough", async ({ page, context, browser }) => {
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await shot("today-new-preorder");
 
-  // The video is the mobile pass. Save it before the desktop screenshots.
-  await page.close();
-  await page.video()?.saveAs(join(OUT, "mise-walkthrough.webm"));
-
-  // Desktop screenshots, from a second, unrecorded window.
-  const wide = await browser.newContext({ ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 }, storageState: await context.storageState() });
+  // Desktop screenshots, from a second window with the same sign-in.
+  const wide = await browser.newContext({ ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 }, colorScheme: "dark", storageState: await context.storageState() });
   const desk = await wide.newPage();
   const deskShot = async (name: string) => {
     await ready(desk);
