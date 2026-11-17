@@ -32,5 +32,5 @@ export function orderCapacity(c: Catalog, available: Record<string, number>, pla
   const { uses } = explode(c, planned, available);
   const left: Record<string, number> = Object.create(null);
   for (const [id, n] of Object.entries(available)) left[id] = Math.max(0, n - (uses[id] ?? 0));
-  return maxBatch(c, left, makes.item, makes.unit);
+  return maxBatch(c, left, makes.item, makes.unit, 1_000_000);
 }

@@ -54,6 +54,14 @@ describe("what the kitchen can still sell", () => {
   it("is 0 once the plan uses everything", () => {
     expect(orderCapacity(syrnikiCatalog, stockFor10, [line(12, "manual")], makes)).toBe(0);
   });
+  it("doesn't read 12 kg of stock as unlimited", () => {
+    const dough: Catalog = {
+      items: [{ id: "flour", name: "Flour", aliases: [], baseUnit: "g", units: {}, allergens: [] }, { id: "dough", name: "Dough", aliases: [], baseUnit: "g", units: {}, allergens: [] }],
+      locations: [], plans: [],
+      recipes: [{ id: "dough", name: "Dough", makes: "dough", yield: { qty: 1, unit: "g" }, components: [{ item: "flour", qty: 1, unit: "g" }] }],
+    };
+    expect(orderCapacity(dough, { flour: 12000 }, [], { item: "dough", unit: "g" })).toBe(12000);
+  });
   it("is Infinity when the recipe needs nothing on hand", () => {
     const tea: Catalog = {
       items: [{ id: "tea", name: "Tea", aliases: [], baseUnit: "each", units: {}, allergens: [] }], locations: [], plans: [],
