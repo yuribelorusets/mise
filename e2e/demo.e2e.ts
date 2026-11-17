@@ -43,7 +43,7 @@ test("walkthrough", async ({ page, context, browser }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
 
   // 2. Today
-  await expect(page.getByText(/Next production, .*40 syrniki/)).toBeVisible();
+  await expect(page.getByText(/Next production, .*45 syrniki \(5 preordered\)/)).toBeVisible();
   await expect(page.getByRole("rowheader", { name: /Eggs/ })).toBeVisible();
   await shot("today");
   await page.getByRole("region", { name: "Preorders" }).scrollIntoViewIfNeeded();

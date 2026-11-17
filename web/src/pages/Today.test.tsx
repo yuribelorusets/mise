@@ -63,6 +63,27 @@ test("lists preorders by pickup time, by first name only", async () => {
   expect(screen.getByRole("heading", { name: "11:00" })).toBeInTheDocument();
 });
 
+test("the header gives one total per dish and says how many of it are preordered", async () => {
+  const plan = {
+    ...todayView.plan,
+    lines: [
+      { item: "syrniki", qty: 40, unit: "order", source: "manual" },
+      { item: "nalysnyky", qty: 30, unit: "order", source: "manual" },
+      { item: "syrniki", qty: 5, unit: "order", source: "preorder" },
+    ],
+  };
+  serve({ ...todayView, plan });
+  renderWith(<Today />);
+  expect(await screen.findByText("Next production, Saturday 5 December: 45 syrniki (5 preordered), 30 nalysnyky")).toBeInTheDocument();
+});
+
+test("a plan made only from preorders says so once per dish", async () => {
+  const plan = { id: "preorders-2026-12-05", date: "2026-12-05", lines: [{ item: "syrniki", qty: 5, unit: "order", source: "preorder" }] };
+  serve({ ...todayView, plan });
+  renderWith(<Today />);
+  expect(await screen.findByText("Next production, Saturday 5 December: 5 syrniki (all preordered)")).toBeInTheDocument();
+});
+
 test("a preorder whose name was removed still shows", async () => {
   serve({ ...todayView, preorders: [{ firstName: "", pickupTime: "11:00", items: [{ name: "Syrniki", quantity: 2 }] }] });
   renderWith(<Today />);

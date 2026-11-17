@@ -1,8 +1,24 @@
 import { useCatalog, useToday } from "../api/hooks";
 import { PrepList } from "../components/PrepList";
 import { showLongDay, showQty } from "../lib/format";
-import type { BaseUnit } from "../api/types";
+import type { BaseUnit, PlanLine } from "../api/types";
 import "./Today.css";
+
+interface DishTotal { item: string; unit: string; qty: number; preordered: number }
+
+/** One line per dish: the plan's own amount and the preorders added together. */
+function dishTotals(lines: PlanLine[]): DishTotal[] {
+  const dishes: DishTotal[] = [];
+  for (const l of lines) {
+    let d = dishes.find((x) => x.item === l.item && x.unit === l.unit);
+    if (!d) dishes.push((d = { item: l.item, unit: l.unit, qty: 0, preordered: 0 }));
+    d.qty += l.qty;
+    if (l.source === "preorder") d.preordered += l.qty;
+  }
+  return dishes;
+}
+
+const preordered = (d: DishTotal) => (d.preordered === 0 ? "" : d.preordered === d.qty ? " (all preordered)" : ` (${d.preordered} preordered)`);
 
 export default function Today() {
   const today = useToday();
@@ -38,7 +54,7 @@ export default function Today() {
         <h1>Today</h1>
         <p className="page-head__sub tnum">
           {plan
-            ? `Next production, ${showLongDay(date)}: ${plan.lines.map((l) => `${l.qty} ${(items.get(l.item)?.name ?? l.item).toLowerCase()}`).join(", ")}`
+            ? `Next production, ${showLongDay(date)}: ${dishTotals(plan.lines).map((d) => `${d.qty} ${(items.get(d.item)?.name ?? d.item).toLowerCase()}${preordered(d)}`).join(", ")}`
             : `No plan yet. Add one under Plan.`}
         </p>
       </header>
