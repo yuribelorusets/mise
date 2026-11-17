@@ -36,7 +36,7 @@ export default defineConfig({
       name: "smoke",
       testMatch: "smoke.e2e.ts",
       retries: process.env.CI ? 1 : 0,
-      use: { ...devices["Desktop Chrome"], viewport: { width: 375, height: 812 } },
+      use: { ...devices["Desktop Chrome"], viewport: { width: 375, height: 812 }, trace: "retain-on-failure" },
     },
     {
       name: "demo",
