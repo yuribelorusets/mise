@@ -191,7 +191,7 @@ export function kitchenRouter(deps: KitchenApiDeps) {
     res.json(batchCost(store.catalog(), store.events(), item, qty, unit));
   });
   router.get("/max-batch", (req, res) => {
-    const n = maxBatch(store.catalog(), available(), known(str(req.query.item, "item")), str(req.query.unit, "unit"));
+    const n = maxBatch(store.catalog(), available(), known(str(req.query.item, "item")), str(req.query.unit, "unit"), 1_000_000);
     res.json({ max: Number.isFinite(n) ? n : null });
   });
 

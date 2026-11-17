@@ -160,6 +160,14 @@ describe("kitchen API", () => {
     expect(await (await kitchen("/max-batch?item=tea-test&unit=each")).json()).toEqual({ max: null });
   });
 
+  it("doesn't call a real shelf unlimited on the max-batch route", async () => {
+    const count = (n: number, id: string) => post("/counts", { clientId: id, location: "dry", lines: [{ item: "flour", qty: n, unit: "g" }] });
+    await count(12000, "flour-count-0001");
+    expect(await (await kitchen("/max-batch?item=flour&unit=g")).json()).toEqual({ max: 12000 });
+    await count(2_000_000, "flour-count-0002");
+    expect(await (await kitchen("/max-batch?item=flour&unit=g")).json()).toEqual({ max: null });
+  });
+
   it("serves the read routes", async () => {
     expect((await (await kitchen("/catalog")).json()).items.length).toBeGreaterThan(0);
     const stock = await (await kitchen("/stock")).json();
