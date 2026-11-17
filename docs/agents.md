@@ -29,7 +29,7 @@ The full protocol is in [the master plan](plans/kitchen-v1.md#branch-and-merge-p
 4. Correctness findings and serious security findings go back to the builder. Medium and low security findings go to [the security backlog](security-backlog.md), each with a test marked `it.fails`.
 5. The orchestrator rebases onto `main`, runs the full check, and fast-forwards. After each wave, a security pass reads everything the wave merged.
 
-History stays linear and every commit on `main` passes the tests. In wave 3 the orchestrator also ran typecheck, the web build and both test suites on every commit of a branch with `git rebase --exec`, after folding a fixup in, so no commit in the middle was broken.
+History stays linear and every commit on `main` passes the tests. In wave 3 the orchestrator also ran typecheck, the web build and both test suites on every commit of each branch with `git rebase --exec` before merging, after folding fixups in, so no commit in the middle was broken.
 
 ## What the runs cost
 
@@ -53,7 +53,7 @@ Tokens are the agent's own. A fix round resumes the builder, so its number inclu
 
 Wave 1 was twelve runs for about 620K tokens: three builders in parallel, a reviewer and a security reviewer on each, and a fix round for each. Wave 2 was nineteen runs for about 1.5M. Builders and the documenter took about 1.1M of that and the ten reviews about 390K. The screens package alone was 430K with its fixes.
 
-Two read-only reviews cost about half of one build. In wave 1, six reviews cost about 150K tokens, roughly one builder's first pass, and every high finding came from them.
+In wave 0, two read-only reviews cost slightly more than the build they checked, and caught a real gap in test coverage. In wave 1, six reviews cost about 150K tokens, roughly one builder's first pass, and every high finding came from them.
 
 ## The eval runs against Claude
 
@@ -70,7 +70,7 @@ That's about $0.46 of the $1.75 I allowed. All three failures were a grader or a
 - **`kitchen-shortfall-live`** (Haiku). The reply quoted the egg case size, 180. That's right, but the number came from the catalog in the model's prompt, and the shopping list tool didn't return it, so the check that every number came from a tool result failed. Shopping lines now carry `buyUnitBase` and `buyBase`.
 - **`kitchen-cost-per-plate`** (Sonnet). "One order of syrniki (3 pieces) costs $0.99." The 3 is the recipe yield, from the prompt and not from the `cost` tool. The tool now returns the amount in base units, as `base` and `baseUnit`.
 
-In each case I added the number to the tool output or narrowed the pattern. I didn't loosen the rule that numbers in a reply must come from a tool.
+In each case I added the number to the tool output or narrowed the pattern. I didn't loosen the rule that numbers in a reply must come from a tool. I didn't rerun either model after the fixes, so they're checked by unit tests and on the mock, not live.
 
 One eval-triager looked at the two Haiku failures: 13K tokens, 6 tool calls, 21 seconds. I didn't fan out, because two failures in one group don't pay for several cold starts. The Sonnet failure I triaged myself. Fan-out pays when there are many failures in unrelated groups with long transcripts.
 
@@ -85,11 +85,11 @@ The wave passes found what branch reviews couldn't, because those bugs sit where
 
 ## What the browser checks caught
 
-A review reads code. Opening the app found other things: the assistant strip covered the card's buttons, and the stale message showed twice. Wave 3 added Playwright smoke tests (`npm run e2e`, run in CI), so the main paths are checked in a real browser on every push, and a demo script that records the screenshots in `docs/demo/`. The first demo was a video. It went by too fast to follow, so I dropped it for dark-mode screenshots.
+A review reads code. Opening the app found other things: the assistant strip covered the card's buttons, and the stale message showed twice. Wave 3 added Playwright smoke tests (`npm run e2e`, run in CI), so the main paths are checked in a real browser on every push, and a demo script that records the screenshots in `docs/demo/`. The first demo was a video. It went by too fast to follow, so I dropped it for dark-mode screenshots and will record the walkthrough by hand.
 
 ## What wasn't worth it
 
-- **The strongest model for a security pass.** It was thorough, and found two highs where pieces meet (retention against the in-memory store, and the budget env var) that the branch reviews missed. At 117K tokens it cost about four Sonnet reviews. A pass over a whole wave is the one place I'd try it again.
+- **The strongest model for a security pass.** It was thorough, and found two highs where pieces meet (retention against the in-memory store, and the budget env var) that the branch reviews missed. At 117K tokens it cost about four Sonnet reviews.
 - **The strongest model for mockups.** It stopped at the usage limit after three screens. A Sonnet frontend-builder did the other two in 36K tokens in the same style.
 - **Plan agents told to read the codebase first.** Two tries, same result: they read until something stopped them and committed nothing. A plan brief now names a short reading list and asks for a commit after each section.
 - **Fan-out for a handful of failures.** One triager is cheaper.
